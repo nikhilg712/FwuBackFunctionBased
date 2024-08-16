@@ -30,7 +30,7 @@ const initializeConfigsAndRoute = async (app: express.Application) => {
         "X-Requested-With",
       ],
       credentials: true,
-    })
+    }),
   );
   app.use(upload());
   app.use(express.json({ limit: "6000mb" }));
@@ -43,7 +43,7 @@ const initializeConfigsAndRoute = async (app: express.Application) => {
       cookie: {
         maxAge: 1000 * 60 * 60 * 24,
       },
-    })
+    }),
   );
   app.use(passport.initialize());
   app.use(passport.session());

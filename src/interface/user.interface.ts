@@ -46,7 +46,7 @@ export interface SignupResponseType {
 }
 
 export interface LoginResponseType {
-  data: Array<object>;
+  data: object;
   flag: boolean;
   type: string;
   message: string;

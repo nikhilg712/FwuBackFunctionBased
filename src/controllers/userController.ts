@@ -31,7 +31,7 @@ import { catchAsync, sendResponse } from "../utils/responseUtils";
 const signup = async (
   request: Request,
   response: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   // Helper function to send responses
 
@@ -84,10 +84,10 @@ const login = catchAsync(
   async (
     request: Request,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     const returnObj: LoginResponseType = {
-      data: [],
+      data: {},
       flag: true,
       type: "",
       message: "",
@@ -111,70 +111,87 @@ const login = catchAsync(
             return reject(err);
           }
           returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
-          returnObj.data = user;
+          const data = {
+            _id: user._id,
+            username: user.username,
+            email: user.email,
+            gender: user.gender,
+            dateOfBirth: user.dateOfBirth,
+            passportNo: user.passportNo,
+            passportExpiry: user.passportExpiry,
+            passportIssuingCountry: user.passportIssuingCountry,
+            panNo: user.panNo,
+            nationality: user.nationality,
+            address: user.address,
+            phone: user.phone,
+            userType: user.userType,
+            profilePic: user.profilePic,
+            wallet: user.wallet,
+            refCode: user.refCode,
+            deviceId: user.deviceId,
+            deviceToken: user.deviceToken,
+          };
+          returnObj.data = data;
           sendResponse(response, 200, "Success", "", returnObj.data); // Send response here
         });
       })(request, response, next);
     });
-  }
+  },
 );
 
-// /**
-//  * @function logout
-//  * @description Logs out the user and clears the assigned cookie.
-//  * @param {Request} request - The Express request object.
-//  * @param {Response} response - The Express response object.
-//  * @param {NextFunction} next - The Express next function.
-//  * @returns {Promise<void>} - A promise that resolves when the logout operation is complete.
-//  */
-// const logout = (
-//   request: Request,
-//   response: Response,
-//   next: NextFunction
-// ): Promise<void> => {
-//   return new Promise((resolve, reject) => {
-//     request.logout((err) => {
-//       if (err) {
-//         return reject(err);
-//       }
-//       response.clearCookie("connect.sid", { path: "/" });
-//       resolve();
-//     });
-//   });
-// };
+/**
+ * @function logout
+ * @description Logs out the user and clears the assigned cookie.
+ * @param {Request} request - The Express request object.
+ * @param {Response} response - The Express response object.
+ * @param {NextFunction} next - The Express next function.
+ * @returns {Promise<void>} - A promise that resolves when the logout operation is complete.
+ */
+const logout = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    request.logout((err) => {
+      if (err) {
+        return next(err); // Pass error to Express error handler
+      }
+      response.clearCookie("connect.sid", { path: "/" });
+      sendResponse(response, 200, "Success", "User LoggedOut Successfully", {});
+    });
+  },
+);
 
-// /**
-//  * @function getProfile
-//  * @description Retrieves the profile of the authenticated user.
-//  * @param {Request} request - The Express request object.
-//  * @param {Response} response - The Express response object.
-//  * @param {NextFunction} next - The Express next function.
-//  * @returns {Promise<UserResponseType>} - A promise that resolves to the user response object.
-//  */
-// const getProfile = async (
-//   request: Request,
-//   response: Response,
-//   next: NextFunction
-// ): Promise<UserResponseType> => {
-//   const returnObj: UserResponseType = {
-//     data: {},
-//     flag: true,
-//     type: "",
-//     message: "",
-//   };
+/**
+ * @function getProfile
+ * @description Retrieves the profile of the authenticated user.
+ * @param {Request} request - The Express request object.
+ * @param {Response} response - The Express response object.
+ * @param {NextFunction} next - The Express next function.
+ * @returns {Promise<UserResponseType>} - A promise that resolves to the user response object.
+ */
+const getProfile = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<UserResponseType> => {
+  const returnObj: UserResponseType = {
+    data: {},
+    flag: true,
+    type: "",
+    message: "",
+  };
 
-//   if (request.isAuthenticated()) {
-//     returnObj.data = request.user;
-//     returnObj.message = constants.SUCCESS_MSG.PROTECTED_ROUTE;
-//   } else {
-//     returnObj.message = constants.ERROR_MSG.UNAUTHORIZED;
-//   }
+  if (request.isAuthenticated()) {
+    returnObj.data = request.user;
+    returnObj.message = constants.SUCCESS_MSG.PROTECTED_ROUTE;
+  } else {
+    returnObj.message = constants.ERROR_MSG.UNAUTHORIZED;
+  }
 
-//   return returnObj;
-// };
-
-export {
-  signup,
-  login,
-  // ,logout, getProfile
+  sendResponse(response, 200, "Success", returnObj.message, returnObj.data);
+  return returnObj;
 };
+
+export { signup, login, logout, getProfile };

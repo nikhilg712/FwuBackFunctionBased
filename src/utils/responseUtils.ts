@@ -6,8 +6,8 @@ import { Request, Response, NextFunction } from "express";
 type AsyncFunction = (
   req: Request,
   res: Response,
-  next: NextFunction
-) => Promise<any>;
+  next: NextFunction,
+) => Promise<void>;
 
 /**
  * A higher-order function to catch errors from async functions.
@@ -20,7 +20,7 @@ type AsyncFunction = (
 //   };
 // };
 const catchAsync = (
-  fn: (req: Request, res: Response, next: NextFunction) => Promise<void>
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<void>,
 ) => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
@@ -54,7 +54,7 @@ const sendResponse = (
   statusMessage: string,
   message: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data: any
+  data: any,
 ) => {
   response.status(statusCode).json({
     statusCode,
@@ -66,20 +66,20 @@ const sendResponse = (
 };
 
 // TODO: Remove
-const sendCustomResponse = (
-  // req: any, res: any, type?: any, message?: any) => void;
-  res: Response,
-  statusCode: number,
-  status: string,
-  type: any = null,
-  message: string
-) => {
-  return res.status(statusCode).json({
-    status,
-    message,
-    type, // Include data only if it is provided
-  });
-};
+// const sendCustomResponse = (
+//   // req: any, res: any, type?: any, message?: any) => void;
+//   res: Response,
+//   statusCode: number,
+//   status: string,
+//   type: any = null,
+//   message: string
+// ) => {
+//   return res.status(statusCode).json({
+//     status,
+//     message,
+//     type, // Include data only if it is provided
+//   });
+// };
 
 // const sendSuccessResponse = (
 //   request: Request,
@@ -105,4 +105,4 @@ const sendCustomResponse = (
 //   data: object;
 // }
 
-export { catchAsync, sendResponse, sendCustomResponse };
+export { catchAsync, sendResponse };

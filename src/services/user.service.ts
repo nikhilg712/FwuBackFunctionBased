@@ -30,7 +30,7 @@ const createUser = async (userData: UserType): Promise<UserType> => {
  * @returns {Promise<UserType | null>} - A promise that resolves to the user object or null if not found.
  */
 const findUserByUsername = async (
-  username: string
+  username: string,
 ): Promise<UserType | null> => {
   return User.findOne({ username }).exec();
 };
@@ -54,7 +54,7 @@ const findUserByEmail = async (email: string): Promise<UserType | null> => {
  */
 const validatePassword = async (
   inputPassword: string,
-  storedPassword: string
+  storedPassword: string,
 ): Promise<boolean> => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
