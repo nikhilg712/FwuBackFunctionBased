@@ -1,16 +1,20 @@
-// models/country.ts
-import mongoose, { Document, Schema } from "mongoose";
+// CountryModel.ts
+import mongoose, { Schema, Document } from "mongoose";
 
-export interface ICountry extends Document {
+interface ICountry extends Document {
   name: string;
-  code: string; // ISO country code
+  flag: string;
+  code: string;
+  dial_code: string;
 }
 
-const countrySchema: Schema<ICountry> = new Schema({
+const CountrySchema: Schema = new Schema({
   name: { type: String, required: true },
+  flag: { type: String, required: true },
   code: { type: String, required: true, unique: true },
+  dial_code: { type: String, required: true },
 });
 
-const Country = mongoose.model<ICountry>("Country", countrySchema);
+const CountryModel = mongoose.model<ICountry>("Country", CountrySchema);
 
-export default Country;
+export default CountryModel;

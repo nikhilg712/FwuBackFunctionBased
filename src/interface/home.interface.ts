@@ -97,3 +97,18 @@ export interface AuthenticateResponse {
     Message: string;
   };
 }
+
+export interface CountryList {
+  data: Array<Country>;
+  flag: boolean;
+  type: string;
+  message: string;
+}
+
+export interface Country {
+  _id: string;
+  name: string;
+  flag: string;
+  code: string;
+  dial_code: string;
+}

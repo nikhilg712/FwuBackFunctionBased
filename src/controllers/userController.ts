@@ -18,6 +18,7 @@ import { User, IUser } from "../models/users";
 import bcrypt from "bcrypt";
 import { AppError } from "../utils/appError";
 import { catchAsync, sendResponse } from "../utils/responseUtils";
+import CountryModel from "../models/country";
 
 /**
  * @function signup
