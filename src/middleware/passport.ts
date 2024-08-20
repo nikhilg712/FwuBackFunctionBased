@@ -56,12 +56,13 @@ const authenticateUser: VerifyFunction = async (
 };
 
 const authenticateOtp = async (
-  req: Request, // Use unknown to handle the type mismatch
+  req: unknown, // Use unknown to handle the type mismatch
   done: DoneCallback
 ) => {
   try {
     // Assert req as Request type
-    const body: any = req.body;
+    const request = req as Request;
+    const body: any = request.body;
     const { phone, otp } = body;
 
     if (typeof phone !== "string" || typeof otp !== "string") {

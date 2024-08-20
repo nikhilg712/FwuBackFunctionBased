@@ -9,8 +9,9 @@ import twilio from "twilio";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "@Utils/responseUtils";
 // Twilio configuration
-
-const client = twilio(process.env.ACCOUNT_SID, process.env.AUTHTOKEN);
+const accountSid = "ACccb732e68333ead1e0a3a9843c9b504c";
+const authToken = "047ff7c7368a1efb557315f8a52d9b18";
+const client = twilio(accountSid, authToken);
 
 // Define schema for a single address
 const addressSchema = yup.object().shape({
@@ -107,7 +108,7 @@ const findUserByEmail = async (email: string): Promise<IUser | null> => {
  */
 const validatePassword = async (
   inputPassword: string,
-  storedPassword: string
+  storedPassword: string,
 ): Promise<boolean> => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
@@ -135,7 +136,7 @@ const sendOtp = async (phone: string): Promise<void> => {
     await OTP.findOneAndUpdate(
       { phone },
       { otp, expiresAt },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
 
     // Send OTP via SMS
