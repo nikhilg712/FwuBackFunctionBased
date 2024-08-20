@@ -1,7 +1,7 @@
 import { catchAsync, sendResponse } from "../utils/responseUtils";
 import { NextFunction, Request, Response } from "express";
 import { CountryList, Country } from "../interface/home.interface";
-import CountryModel from "../models/country";
+import { CountryModel } from "../models/country";
 
 const getCountryList = catchAsync(
   async (

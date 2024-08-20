@@ -1,18 +1,16 @@
 import { NextFunction, Request, Response, Router } from "express";
 
-// Define the route handler functions
-const index = async (req: Request, res: Response, next: NextFunction) => {
-  res.send("hi BaseRoute");
+const baseRouter = Router();
+// Initialize routes function
+const initializeRoutes = (router: Router) => {
+  const path = "/";
+
+  // // Define routes
+  router.get(`${path}`, (request: Request, response: Response) => {
+    response.send("Base routes");
+  });
 };
 
-// Create a function to initialize the routes and return the router
-const BaseRouter = (): Router => {
-  const router = Router();
+initializeRoutes(baseRouter);
 
-  // Set up the routes
-  router.get("/", index);
-
-  return router;
-};
-
-export default BaseRouter;
+export default baseRouter;

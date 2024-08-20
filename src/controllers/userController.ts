@@ -1,24 +1,30 @@
 import { NextFunction, Request, Response } from "express";
 import {
+  signupSchema,
   createUser,
   findUserByEmail,
   findUserById,
   findUserByUsername,
   validatePassword,
+  createAddress,
+  sendOtp as sendOtpRequest,
+  verifyOtp as verifyOtpRequest,
 } from "../services/user.service";
 import { constants } from "../constants/user.constants";
 import passport from "../middleware/passport";
 import {
   LoginResponseType,
+  OtpRequestBody,
   SignupResponseType,
   UserResponseType,
+  UserSignup,
   UserType,
 } from "../interface/user.interface";
 import { User, IUser } from "../models/users";
 import bcrypt from "bcrypt";
 import { AppError } from "../utils/appError";
 import { catchAsync, sendResponse } from "../utils/responseUtils";
-import CountryModel from "../models/country";
+import { IAddress } from "../models/address";
 
 /**
  * @function signup
@@ -29,49 +35,102 @@ import CountryModel from "../models/country";
  * @returns {Promise<SignupResponseType>} - A promise that resolves to the signup response object.
  */
 
-const signup = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-): Promise<void> => {
-  // Helper function to send responses
-
-  // Main function logic
-  const { username, email, password, ...rest } = request.body;
-
-  try {
-    // TODO: Valid using yup or zod
-    const existingUser = await findUserByEmail(email);
-    if (existingUser) {
-      throw new AppError(constants.ERROR_MSG.EMAIL_ALREADY_EXISTS, 400);
-    }
-
-    const newUser: UserType = await createUser({
-      username,
-      email,
-      password,
-      ...rest,
-    });
-
-    const returnObj: SignupResponseType = {
-      data: [newUser], // TODO: Handle array and objects
-      flag: true, // TODO: Remove and use http status codes instead
+const signup = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    // Prepare response object
+    const returnObj: UserResponseType = {
+      data: {},
+      flag: true,
       type: "",
       message: "",
     };
+    // Validate request body
+    await signupSchema.validate(request.body, { abortEarly: false });
 
-    // Send the response using the helper function
-    sendResponse(response, 200, "Success", "", returnObj.data);
-  } catch (error) {
-    if (error instanceof Error) {
-      // If error is an instance of Error, you can access error.message safely
-      next(new AppError(error.message, 400)); // Use next() to pass error to the global error handler
-    } else {
-      // Handle other types of errors or fallback
-      next(new AppError("An unknown error occurred", 500));
+    const {
+      username,
+      email,
+      password,
+      gender,
+      dateOfBirth,
+      passportNo,
+      passportExpiry,
+      passportIssuingCountry,
+      panNo,
+      nationality,
+      address,
+      phone,
+      userType,
+      profilePic,
+      wallet,
+      refCode,
+      deviceId,
+      deviceToken,
+      googleId,
+    }: IUser = request.body;
+
+    // Create new user
+    // Ensure required fields are provided
+    if (!phone) {
+      throw new AppError("Phone number is required", 400);
     }
-  }
-};
+
+    // Create address if address data is provided
+    let addressId: IAddress["_id"] | undefined;
+    if (address) {
+      const addressData = await createAddress(address);
+      addressId = addressData;
+    }
+
+    // Check if user already exists
+    let hashedPassword: string | undefined;
+    if (email) {
+      const existingUser = await findUserByEmail(email);
+      if (existingUser) {
+        throw new AppError("Email already exists", 400);
+      }
+
+      // Encrypt password if provided
+      if (password) {
+        const saltRounds = 10;
+        const salt = await bcrypt.genSalt(saltRounds);
+        hashedPassword = await bcrypt.hash(password, salt);
+      }
+    }
+
+    // Create new user
+    const newUser = await createUser({
+      username: username || "",
+      email: email || "",
+      password: hashedPassword,
+      gender: gender || "",
+      dateOfBirth: dateOfBirth || new Date(),
+      passportNo: passportNo || "",
+      passportExpiry: passportExpiry || new Date(),
+      passportIssuingCountry: passportIssuingCountry || undefined,
+      panNo: panNo || "",
+      nationality: nationality || undefined,
+      address: addressId || undefined,
+      phone: phone,
+      userType: userType || "Client",
+      profilePic: profilePic || "",
+      wallet: wallet || 0,
+      refCode: refCode || "",
+      deviceId: deviceId || "",
+      deviceToken: deviceToken || "",
+      googleId: googleId || "",
+    } as IUser);
+
+    returnObj.data = newUser;
+    returnObj.message = constants.SUCCESS_MSG.USER_CREATED;
+    // Send the response
+    sendResponse(response, 200, "Success", returnObj.message, returnObj.data);
+  },
+);
 
 /**
  * @function login
@@ -195,4 +254,122 @@ const getProfile = async (
   return returnObj;
 };
 
-export { signup, login, logout, getProfile };
+const loginByPhone = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    const returnObj = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    passport.authenticate(
+      "otp",
+      (err: unknown, user: IUser | false, info: object) => {
+        if (err) {
+          return next(err);
+        }
+        if (!user) {
+          returnObj.data = info;
+          returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+          returnObj.flag = false;
+          return sendResponse(
+            response,
+            401,
+            "Failure",
+            constants.ERROR_MSG.LOGIN_FAILED,
+            {},
+          );
+        }
+
+        request.logIn(user, (err) => {
+          if (err) {
+            return next(err);
+          }
+          returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
+          const data = {
+            _id: user._id,
+            username: user.username,
+            email: user.email,
+            gender: user.gender,
+            dateOfBirth: user.dateOfBirth,
+            passportNo: user.passportNo,
+            passportExpiry: user.passportExpiry,
+            passportIssuingCountry: user.passportIssuingCountry,
+            panNo: user.panNo,
+            nationality: user.nationality,
+            address: user.address,
+            phone: user.phone,
+            userType: user.userType,
+            profilePic: user.profilePic,
+            wallet: user.wallet,
+            refCode: user.refCode,
+            deviceId: user.deviceId,
+            deviceToken: user.deviceToken,
+          };
+          returnObj.data = data;
+          return sendResponse(response, 200, "Success", "", returnObj.data);
+        });
+      },
+    )(request, response, next);
+  },
+);
+
+const sendOtp = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    const returnObj = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    const { phone } = request.body;
+    await sendOtpRequest(phone);
+    sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
+  },
+);
+
+const verifyOtp = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    const returnObj = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    const { phone, otp }: OtpRequestBody = request.body;
+    const verified: boolean = await verifyOtpRequest(phone, otp);
+    if (verified) {
+      return sendResponse(
+        response,
+        200,
+        "Success",
+        "Otp verified Successfully",
+        {},
+      );
+    }
+    return sendResponse(
+      response,
+      400,
+      "Failure",
+      "Otp not verified Successfully",
+      {},
+    );
+  },
+);
+
+export { signup, login, logout, getProfile, loginByPhone, sendOtp, verifyOtp };

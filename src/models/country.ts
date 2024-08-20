@@ -17,4 +17,4 @@ const CountrySchema: Schema = new Schema({
 
 const CountryModel = mongoose.model<ICountry>("Country", CountrySchema);
 
-export default CountryModel;
+export { CountryModel, ICountry };

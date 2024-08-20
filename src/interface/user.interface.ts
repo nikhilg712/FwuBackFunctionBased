@@ -2,7 +2,6 @@ export interface UserType {
   _id: string;
   username: string;
   email: string;
-  uid: string;
   password: string;
   gender: string;
   dateOfBirth: Date;
@@ -57,4 +56,15 @@ export interface UserResponseType {
   flag: boolean;
   type: string;
   message: string;
+}
+
+export interface UserSignup {
+  phone: string;
+  email: string;
+  password: string;
+}
+
+export interface OtpRequestBody {
+  phone: string;
+  otp: string;
 }

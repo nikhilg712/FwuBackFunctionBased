@@ -4,6 +4,9 @@ import {
   login,
   logout,
   getProfile,
+  loginByPhone,
+  sendOtp,
+  verifyOtp,
 } from "../controllers/userController";
 import passport from "passport";
 import { isAuthenticated } from "../middleware/authenticate";
@@ -22,6 +25,9 @@ const initializeRoutes = (router: Router) => {
     login,
   );
   router.post(`${path}logout`, logout);
+  router.post(`${path}loginByPhone`, loginByPhone);
+  router.post(`${path}send-otp`, sendOtp);
+  router.post(`${path}verify-otp`, verifyOtp);
 
   // Add other routes if needed
   // router.delete(`${path}deleteUser`, APP.MIDDLEWARES.AUTH, deleteUser);

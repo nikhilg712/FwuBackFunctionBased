@@ -11,11 +11,11 @@ export interface IAddress extends Document {
 }
 
 const addressSchema: Schema<IAddress> = new Schema({
-  street: { type: String, required: true },
-  city: { type: String, required: true },
-  state: { type: String, required: true },
-  country: { type: Schema.Types.ObjectId, ref: "Country", required: true },
-  zipCode: { type: String, required: true },
+  street: { type: String, required: false },
+  city: { type: String, required: false },
+  state: { type: String, required: false },
+  country: { type: Schema.Types.ObjectId, ref: "Country", required: false },
+  zipCode: { type: String, required: false },
 });
 
 const Address = mongoose.model<IAddress>("Address", addressSchema);

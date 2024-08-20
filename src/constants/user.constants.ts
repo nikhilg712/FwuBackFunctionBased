@@ -20,4 +20,6 @@ export const constants = {
     LOGGED_OUT: "Successfully Logged Out",
   },
   ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND",
+  USER_TYPE_INDIVIDUAL: "Individual",
+  USER_TYPE_AGENT: "AGENT",
 };
