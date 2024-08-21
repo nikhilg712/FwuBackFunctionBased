@@ -10,7 +10,7 @@ import { AppError } from "../utils/appError";
 import { catchAsync } from "@Utils/responseUtils";
 // Twilio configuration
 const accountSid = "ACccb732e68333ead1e0a3a9843c9b504c";
-const authToken = "047ff7c7368a1efb557315f8a52d9b18";
+const authToken = "f2d1844d301d2fca6991cec1eb0c2feb";
 const client = twilio(accountSid, authToken);
 
 // Define schema for a single address
@@ -43,7 +43,7 @@ const signupSchema = yup.object({
   panNo: yup.string().notRequired(),
   nationality: yup.string().notRequired(),
   address: addressArraySchema,
-  phone: yup.string().required(),
+  phone: yup.string().notRequired(),
   userType: yup.string().oneOf(["Admin", "Client"]).notRequired(),
   profilePic: yup.string().notRequired(),
   wallet: yup.number().notRequired(),
@@ -75,8 +75,13 @@ const createAddress = async (address: IAddress): Promise<IAddress[]> => {
  * @returns {Promise<UserType>} - A promise that resolves to the created user object.
  */
 const createUser = async (userData: IUser): Promise<IUser> => {
-  const user = new User(userData);
-  return user.save();
+  try {
+    const user = new User(userData);
+    return user.save();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (err: any) {
+    throw new AppError("Error occured while signing up user", 500);
+  }
 };
 
 /**
@@ -108,7 +113,7 @@ const findUserByEmail = async (email: string): Promise<IUser | null> => {
  */
 const validatePassword = async (
   inputPassword: string,
-  storedPassword: string,
+  storedPassword: string
 ): Promise<boolean> => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
@@ -136,7 +141,7 @@ const sendOtp = async (phone: string): Promise<void> => {
     await OTP.findOneAndUpdate(
       { phone },
       { otp, expiresAt },
-      { upsert: true, new: true },
+      { upsert: true, new: true }
     );
 
     // Send OTP via SMS
@@ -149,6 +154,7 @@ const sendOtp = async (phone: string): Promise<void> => {
     console.log("OTP sent successfully");
   } catch (error) {
     console.error("Error sending OTP:", error);
+    throw new AppError("Some problem with otp-sending", 400);
   }
 };
 
