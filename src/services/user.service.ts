@@ -10,7 +10,7 @@ import { AppError } from "../utils/appError";
 import { catchAsync } from "@Utils/responseUtils";
 // Twilio configuration
 const accountSid = "ACccb732e68333ead1e0a3a9843c9b504c";
-const authToken = "f2d1844d301d2fca6991cec1eb0c2feb";
+const authToken = "81e58c2cac1c4930279e85c576f40d8a";
 const client = twilio(accountSid, authToken);
 
 // Define schema for a single address
