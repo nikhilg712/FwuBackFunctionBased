@@ -345,6 +345,8 @@ const sendOtp = catchAsync(
   },
 );
 
+
+
 const forgotPasswordController = catchAsync(
   async (
     request: Request,

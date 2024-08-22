@@ -17,11 +17,48 @@ import crypto from "crypto";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "@Utils/responseUtils";
 import dotenv from "dotenv";
+import { Client } from "@microsoft/microsoft-graph-client";
+import homeRouter from "@Routes/homeRoutes";
+
 dotenv.config();
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
+const TENANT_ID = process.env.TENANT_ID;
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
+
+const getAccessToken = async (): Promise<string> => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+
+  const url = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: CLIENT_ID!,
+      client_secret: CLIENT_SECRET!,
+      scope: "https://graph.microsoft.com/.default",
+    }),
+  });
+
+  const data: any = await response.json();
+  return data.access_token;
+};
+
+const createClient = async (): Promise<Client> => {
+  const accessToken = await getAccessToken();
+  return Client.init({
+    authProvider: (done) => {
+      done(null, accessToken);
+    },
+  });
+};
 
 // Define schema for a single address
 const addressSchema = yup.object().shape({
@@ -259,8 +296,32 @@ const deleteCoTraveller = async (
   return await CoTraveller.findByIdAndDelete(id).exec();
 };
 // Export the functions
+
+const sendEmail = async (
+  email: string,
+  body: string,
+  subject: string,
+): Promise<void> => {
+  const client = await createClient();
+  await client.api("/users/support@flewwithus.com/sendMail").post({
+    message: {
+      subject: subject,
+      body: {
+        contentType: "HTML",
+        content: body,
+      },
+      toRecipients: [
+        {
+          emailAddress: {
+            address: email,
+          },
+        },
+      ],
+    },
+  });
+};
+
 const forgotPassword = async (email: string): Promise<void> => {
-  // Check if the user exists
   const user = await User.findOne({ email });
   if (!user) {
     throw new Error("User doesn't exist");
@@ -276,87 +337,28 @@ const forgotPassword = async (email: string): Promise<void> => {
   await user.save();
 
   // Create reset URL
-  const resetUrl = `http://localhost:5000/reset-password/?token=${resetToken}`;
-
-  // Send email
-  // const transporter = nodemailer.createTransport({
-  //   host: "smtp-mail.outlook.com",
-  //   port: 587,
-  //   secure: false, // Use TLS
-  //   auth: {
-  //     user: process.env.EMAIL_USER, // Your email
-  //     pass: process.env.EMAIL_PASS, // Your password or app password
-  //   },
-  //   tls: {
-  //     rejectUnauthorized: false, // Optional: Allow self-signed certificates
-  //   },
-  // });
-
-  // const transporter = nodemailer.createTransport({
-  //   host: "smtp-mail.outlook.com",
-  //   port: 587,
-  //   tls: {
-  //     ciphers: "SSLv3",
-  //     rejectUnauthorized: false,
-  //   },
-  //   auth: {
-  //     user: process.env.EMAIL_USER,
-  //     pass: process.env.EMAIL_PASS,
-  //   },
-  // });
-
-  // const mailOptions = {
-  //   from: process.env.EMAIL_USER,
-  //   to: user.email,
-  //   subject: "Password Reset",
-  //   html: `<p>You requested a password reset. Click <a href="${resetUrl}">here</a> to reset your password.</p>`,
-  // };
-
-  // await transporter.sendMail(mailOptions);
-
-  const client = new SMTPClient({
-    user: "support@flewwithus.com",
-    password: "FWU@notification",
-    host: "smtp-mail.outlook.com",
-    port: 587,
-    //authentication: "XOAUTH2",
-    tls: {
-      ciphers: "SSLv3",
+  const resetUrl = `http://localhost:8000/fwu/api/v1/user/reset-password/?token=${resetToken}`;
+  const htmlContent = `
+    <p>Click the link below to reset your password:</p>
+    <p><a href="${resetUrl}">Click here</a></p>
+  `;
+  const client = await createClient();
+  await client.api("/users/support@flewwithus.com/sendMail").post({
+    message: {
+      subject: "Reset Password",
+      body: {
+        contentType: "HTML",
+        content: htmlContent,
+      },
+      toRecipients: [
+        {
+          emailAddress: {
+            address: email,
+          },
+        },
+      ],
     },
   });
-
-  const message = new Message({
-    text: "i hope this works",
-    from: "support@flewwithus.com",
-    to: "ishantchauhan710@gmail.com",
-    //cc: "else <else@your-email.com>",
-    subject: "testing emailjs",
-    attachment: [
-      { data: "<html>i <i>hope</i> this works!</html>", alternative: true },
-      // {
-      //   path: "path/to/file.zip",
-      //   type: "application/zip",
-      //   name: "renamed.zip",
-      // },
-    ],
-  });
-
-  client.send(message, (err, message) => {
-    console.log(err || message);
-  });
-
-  // emailjs.send(
-  //   "service_uwpixdc",
-  //   "template_ogz86ze",
-  //   {
-  //     message: "hi",
-  //     to_email: "ishantchauhan710@gmail.com",
-  //   }
-  //   // {
-  //   //   publicKey: "RGQbSEzMr-b5F2ss0",
-  //   //   privateKey: "gUn21ycHD2fjzl2sgGsA-",
-  //   // }
-  // );
 };
 
 const resetPassword = async (
