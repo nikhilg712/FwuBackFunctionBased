@@ -8,9 +8,11 @@ import OTP from "../models/phoneotp";
 import twilio from "twilio";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "@Utils/responseUtils";
+import dotenv from "dotenv";
+dotenv.config();
 // Twilio configuration
-const accountSid = "ACccb732e68333ead1e0a3a9843c9b504c";
-const authToken = "81e58c2cac1c4930279e85c576f40d8a";
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
 
 // Define schema for a single address
@@ -113,7 +115,7 @@ const findUserByEmail = async (email: string): Promise<IUser | null> => {
  */
 const validatePassword = async (
   inputPassword: string,
-  storedPassword: string,
+  storedPassword: string
 ): Promise<boolean> => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
@@ -141,7 +143,7 @@ const sendOtp = async (phone: string): Promise<void> => {
     await OTP.findOneAndUpdate(
       { phone },
       { otp, expiresAt },
-      { upsert: true, new: true },
+      { upsert: true, new: true }
     );
 
     // Send OTP via SMS

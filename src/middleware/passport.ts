@@ -11,6 +11,8 @@ import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/responseUtils";
 import OTP from "../models/phoneotp";
 import { OtpRequestBody } from "../interface/user.interface";
+import dotenv from "dotenv";
+dotenv.config();
 
 // Define the type for the `done` callback function
 type DoneCallback = (
@@ -63,6 +65,7 @@ const authenticateOtp = async (
   try {
     // Assert req as Request type
     const request = req as Request;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: any = request.body;
     const { phone, otp } = body;
 
@@ -166,7 +169,9 @@ passport.use(
     async (
       accessToken: string,
       refreshToken: string,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       profile: any,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
       done: Function
     ) => {
       try {
@@ -186,6 +191,7 @@ passport.use(
         }).save();
 
         done(null, newUser);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         console.log(err.message);
         throw new AppError(err, 400);
