@@ -509,6 +509,208 @@ const googleAuthCallback = catchAsync(
   },
 );
 
+const newCoTraveller = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    passport.authenticate(
+      "google",
+      async (err: Error | null, user: IUser | false, info: object) => {
+        if (err) {
+          console.error("Google authentication error:", err); // Log the error
+          return new AppError("Google Authentication Error", 400);
+        }
+        if (!user) {
+          console.log("Authentication failed:", info); // Log failure info
+          return sendResponse(
+            response,
+            401,
+            "Failure",
+            constants.ERROR_MSG.LOGIN_FAILED,
+            {},
+          );
+        }
+
+        request.logIn(user, (err) => {
+          if (err) {
+            console.error("Error logging in user:", err); // Log login error
+            return next(err);
+          }
+
+          const data = {
+            _id: user._id,
+            username: user.username,
+            email: user.email,
+            // Other user details
+          };
+
+          return sendResponse(response, 200, "Success", "", data);
+        });
+      },
+    )(request, response, next);
+    const returnObj: CoTravellerResponseType = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    if (request.isAuthenticated()) {
+      const user = request.user as { id: string };
+      const userId = user.id;
+      console.log(userId);
+
+      const coTraveler = await createCoTraveller(userId, request.body);
+      returnObj.data = coTraveler;
+      returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_CREATED;
+    } else {
+      returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
+    }
+    return sendResponse(
+      response,
+      200,
+      "Success",
+      returnObj.message,
+      returnObj.data,
+    );
+  },
+);
+
+const updateCoTraveller = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    const returnObj: CoTravellerResponseType = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    if (request.isAuthenticated()) {
+      const coTraveller = await findCoTravellerById(
+        request.params.coTravellerId,
+      );
+      if (!coTraveller) {
+        returnObj.message = constants.ERROR_MSG.COTRAVELLER_NOT_FOUND;
+        return sendResponse(response, 200, "Failure", returnObj.message, {});
+      }
+      const updatedCoTraveller = await updateCoTravelerRequest(
+        request.params.coTravellerId,
+        request.body,
+      );
+      returnObj.data = updatedCoTraveller || {};
+      returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_CREATED;
+    } else {
+      returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
+    }
+    return sendResponse(
+      response,
+      200,
+      "Success",
+      returnObj.message,
+      returnObj.data,
+    );
+  },
+);
+
+const deleteCoTraveller = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    const returnObj: CoTravellerResponseType = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    if (request.isAuthenticated()) {
+      // Await the result from getCoTravellerById
+      const coTraveller: any = await findCoTravellerById(
+        request.params.coTravellerId,
+      );
+      if (!coTraveller) {
+        returnObj.message = constants.ERROR_MSG.COTRAVELLER_NOT_FOUND;
+        return sendResponse(
+          response,
+          404, // Not Found
+          "Failure",
+          returnObj.message,
+          {},
+        );
+      }
+      await deleteCoTravellerRequest(request.params.coTravellerId);
+      const user = request.user as { id: string }; // Explicitly tell TypeScript that user has an id field
+      const userId = user.id;
+      console.log(userId);
+      const coTravelers = await findCoTravellersByUserId(userId);
+      returnObj.data = coTravelers;
+      returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_DELETED;
+    } else {
+      returnObj.flag = false;
+      returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
+    }
+    return sendResponse(
+      response,
+      200,
+      "Success",
+      returnObj.message,
+      returnObj.data,
+    );
+  },
+);
+
+const getCotravellers = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> => {
+    const returnObj: CoTravellerResponseType = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    if (request.isAuthenticated()) {
+      const user = request.user as { id: string }; // Explicitly tell TypeScript that user has an id field
+      const userId = user.id;
+      console.log(userId);
+      const coTravelers = await findCoTravellersByUserId(userId);
+      if (!coTravelers || coTravelers.length == 0) {
+        returnObj.message = constants.ERROR_MSG.COTRAVELLER_NOT_FOUND;
+        return sendResponse(
+          response,
+          404, // Not Found
+          "Failure",
+          returnObj.message,
+          {},
+        );
+      }
+      returnObj.data = coTravelers;
+      returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_FETCHED;
+    } else {
+      returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
+    }
+    return sendResponse(
+      response,
+      200,
+      "Success",
+      returnObj.message,
+      returnObj.data,
+    );
+  },
+);
+
 export {
   signup,
   login,
@@ -519,4 +721,10 @@ export {
   verifyOtp,
   googleAuth,
   googleAuthCallback,
+  forgotPasswordController,
+  resetPasswordController,
+  updateCoTraveller,
+  newCoTraveller,
+  deleteCoTraveller,
+  getCotravellers,
 };
