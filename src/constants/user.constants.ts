@@ -10,7 +10,9 @@ export const constants = {
     LOGIN_FAILED: "Login Failed",
     UNAUTHORIZED: "unauthorized",
     INCORRECT_EMAIL: "Incorrect Email",
+    NOT_AUTHENTICATED: "User Not Authenticated",
     INCORRECT_PASSWORD: "Incorrect Password",
+    COTRAVELLER_NOT_FOUND: "Co-Traveler Not Found",
   },
 
   SUCCESS_MSG: {
@@ -18,6 +20,9 @@ export const constants = {
     LOGGED_IN: "Logged in Successfully",
     PROTECTED_ROUTE: "This is a protected route",
     LOGGED_OUT: "Successfully Logged Out",
+    COTRAVELLER_CREATED: "Co-Traveller Created Successfully",
+    COTRAVELLER_FETCHED: "Co-Traveller Fetched Successfully",
+    COTRAVELLER_DELETED: "Co-Traveller Deleted Successfully",
   },
   ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND",
   USER_TYPE_INDIVIDUAL: "Individual",

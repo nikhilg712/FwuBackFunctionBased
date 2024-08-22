@@ -1,6 +1,7 @@
 import { Document, Schema, model } from "mongoose";
 import { IAddress } from "./address";
 import { ICountry } from "./country";
+import { number } from "yup";
 
 // Define the enum for gender
 enum Gender {
@@ -30,6 +31,8 @@ interface IUser extends Document {
   deviceId?: string;
   deviceToken?: string;
   googleId?: string;
+  resetPasswordExpiry: number;
+  resetPasswordToken: string;
 }
 
 // Create the schema with the IUser type
@@ -64,6 +67,8 @@ const userSchema: Schema<IUser> = new Schema(
     deviceId: { type: String },
     deviceToken: { type: String },
     googleId: { type: String, unique: false },
+    resetPasswordExpiry: { type: Number },
+    resetPasswordToken: { type: String },
   },
   { timestamps: true },
 );

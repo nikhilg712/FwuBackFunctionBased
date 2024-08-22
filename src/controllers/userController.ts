@@ -7,10 +7,21 @@ import {
   findUserByUsername,
   validatePassword,
   createAddress,
+  forgotPassword,
+  findCoTravellersByUserId,
+  findCoTravellerById,
+  updateCoTraveller as updateCoTravelerRequest,
+  deleteCoTraveller as deleteCoTravellerRequest,
+  resetPassword,
   sendOtp as sendOtpRequest,
   verifyOtp as verifyOtpRequest,
+  createCoTraveller,
 } from "../services/user.service";
 import { constants } from "../constants/user.constants";
+import {
+  CoTravellerResponseType,
+  CoTravellerType,
+} from "../interface/user.interface";
 import passport from "../middleware/passport";
 import {
   LoginResponseType,
@@ -331,6 +342,54 @@ const sendOtp = catchAsync(
     const { phone } = request.body;
     await sendOtpRequest(phone);
     sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
+  },
+);
+
+const forgotPasswordController = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    const { email } = request.body;
+    await forgotPassword(email);
+    sendResponse(
+      response,
+      200,
+      "Success",
+      "Password reset link sent to your email",
+      {},
+    );
+  },
+);
+
+const resetPasswordController = catchAsync(
+  async (request: Request, response: Response, next: NextFunction) => {
+    const { token } = request.query;
+    const { newPassword, confirmPassword } = request.body;
+
+    if (!token || !newPassword || !confirmPassword) {
+      return sendResponse(
+        response,
+        400,
+        "Error",
+        "All fields are required.",
+        {},
+      );
+    }
+
+    if (typeof token !== "string") {
+      return sendResponse(response, 400, "Error", "Invalid token", {});
+    }
+
+    await resetPassword(token, newPassword, confirmPassword);
+    sendResponse(
+      response,
+      200,
+      "Success",
+      "Password has been reset successfully. Please login.",
+      {},
+    );
   },
 );
 
