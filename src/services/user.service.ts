@@ -113,7 +113,7 @@ const findUserByEmail = async (email: string): Promise<IUser | null> => {
  */
 const validatePassword = async (
   inputPassword: string,
-  storedPassword: string
+  storedPassword: string,
 ): Promise<boolean> => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
@@ -141,7 +141,7 @@ const sendOtp = async (phone: string): Promise<void> => {
     await OTP.findOneAndUpdate(
       { phone },
       { otp, expiresAt },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
 
     // Send OTP via SMS

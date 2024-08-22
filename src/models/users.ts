@@ -35,10 +35,14 @@ interface IUser extends Document {
 // Create the schema with the IUser type
 const userSchema: Schema<IUser> = new Schema(
   {
-    username: { type: String, unique: true },
-    email: { type: String, unique: true },
+    username: { type: String, unique: false, defaultValue: "" },
+    email: { type: String, unique: false },
     password: { type: String },
-    gender: { type: String, enum: Object.values(Gender) },
+    gender: {
+      type: String,
+      enum: Object.values(Gender),
+      defaultValue: Gender.Male,
+    },
     dateOfBirth: { type: Date },
     passportNo: { type: String },
     passportExpiry: { type: Date },
@@ -52,7 +56,7 @@ const userSchema: Schema<IUser> = new Schema(
       ref: "Country",
     },
     address: [{ type: Schema.Types.ObjectId, ref: "Address" }],
-    phone: { type: String, required: true },
+    phone: { type: String },
     userType: { type: String, enum: ["Admin", "Client"], default: "Client" },
     profilePic: { type: String },
     wallet: { type: Number, default: 0 },

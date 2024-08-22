@@ -7,6 +7,8 @@ import {
   loginByPhone,
   sendOtp,
   verifyOtp,
+  googleAuth,
+  googleAuthCallback,
 } from "../controllers/userController";
 import passport from "passport";
 import { isAuthenticated } from "../middleware/authenticate";
@@ -18,6 +20,15 @@ const initializeRoutes = (router: Router) => {
 
   // // Define routes
   router.get(`${path}profile`, isAuthenticated, getProfile);
+  router.get("/auth/google", googleAuth);
+
+  // Callback route for Google to redirect to
+  router.get(
+    "/auth/google/callback",
+    passport.authenticate("google"),
+    googleAuthCallback,
+  );
+
   router.post(`${path}signup`, signup);
   router.post(
     `${path}login`,

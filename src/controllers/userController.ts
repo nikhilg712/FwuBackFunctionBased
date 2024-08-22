@@ -49,7 +49,7 @@ const signup = catchAsync(
       message: "",
     };
     // Validate request body
-    await signupSchema.validate(request.body, { abortEarly: false });
+    //await signupSchema.validate(request.body, { abortEarly: false });
 
     const {
       username,
@@ -81,7 +81,7 @@ const signup = catchAsync(
 
     // Create address if address data is provided
     let addressId: IAddress["_id"] | undefined;
-    if (address) {
+    if (address.length > 0) {
       const addressData = await createAddress(address);
       addressId = addressData;
     }
@@ -107,7 +107,7 @@ const signup = catchAsync(
       username: username || "",
       email: email || "",
       password: hashedPassword,
-      gender: gender || "",
+      gender: gender || "Male",
       dateOfBirth: dateOfBirth || new Date(),
       passportNo: passportNo || "",
       passportExpiry: passportExpiry || new Date(),
@@ -273,49 +273,45 @@ const loginByPhone = catchAsync(
         if (err) {
           return next(err);
         }
-        if (!user) {
-          returnObj.data = info;
-          returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
-          returnObj.flag = false;
-          return sendResponse(
-            response,
-            401,
-            "Failure",
-            constants.ERROR_MSG.LOGIN_FAILED,
-            {},
-          );
-        }
+        // if (!user) {
+        //   returnObj.data = info;
+        //   returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+        //   returnObj.flag = false;
+        //   return sendResponse(
+        //     response,
+        //     401,
+        //     "Failure",
+        //     constants.ERROR_MSG.LOGIN_FAILED,
+        //     {}
+        //   );
+        // }
 
         request.logIn(user, (err) => {
           if (err) {
             return next(err);
           }
+          if (!user) {
+            returnObj.data = info;
+            returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+            returnObj.flag = false;
+            return sendResponse(
+              response,
+              401,
+              "Failure",
+              constants.ERROR_MSG.LOGIN_FAILED,
+              {},
+            );
+          }
           returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
           const data = {
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            gender: user.gender,
-            dateOfBirth: user.dateOfBirth,
-            passportNo: user.passportNo,
-            passportExpiry: user.passportExpiry,
-            passportIssuingCountry: user.passportIssuingCountry,
-            panNo: user.panNo,
-            nationality: user.nationality,
-            address: user.address,
-            phone: user.phone,
-            userType: user.userType,
-            profilePic: user.profilePic,
-            wallet: user.wallet,
-            refCode: user.refCode,
-            deviceId: user.deviceId,
-            deviceToken: user.deviceToken,
+            _id: user?._id || "",
           };
           returnObj.data = data;
-          return sendResponse(response, 200, "Success", "", returnObj.data);
+          // return sendResponse(response, 200, "Success", "", returnObj.data);
         });
       },
     )(request, response, next);
+    return sendResponse(response, 200, "Success", "", returnObj.data);
   },
 );
 
@@ -353,23 +349,115 @@ const verifyOtp = catchAsync(
 
     const { phone, otp }: OtpRequestBody = request.body;
     const verified: boolean = await verifyOtpRequest(phone, otp);
-    if (verified) {
+    if (!verified) {
       return sendResponse(
         response,
-        200,
-        "Success",
-        "Otp verified Successfully",
+        400,
+        "Failure",
+        "Otp not verified Successfully",
         {},
       );
     }
-    return sendResponse(
-      response,
-      400,
-      "Failure",
-      "Otp not verified Successfully",
-      {},
-    );
+    passport.authenticate(
+      "otp",
+      (err: unknown, user: IUser | false, info: object) => {
+        if (err) {
+          return next(err);
+        }
+
+        request.logIn(user, (err) => {
+          if (err) {
+            return next(err);
+          }
+          if (!user) {
+            returnObj.data = info;
+            returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+            returnObj.flag = false;
+            return sendResponse(
+              response,
+              401,
+              "Failure",
+              constants.ERROR_MSG.LOGIN_FAILED,
+              {},
+            );
+          }
+          returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
+          const data = {
+            _id: user?._id || "",
+          };
+          returnObj.data = data;
+          // return sendResponse(response, 200, "Success", "", returnObj.data);
+        });
+      },
+    )(request, response, next);
+    return sendResponse(response, 200, "Success", "", returnObj.data);
+  },
+);
+const googleAuth = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    passport.authenticate(
+      "google",
+      { scope: ["profile", "email"] }, // Ensure scope is correctly set
+    )(request, response, next);
   },
 );
 
-export { signup, login, logout, getProfile, loginByPhone, sendOtp, verifyOtp };
+const googleAuthCallback = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    passport.authenticate(
+      "google",
+      async (err: Error | null, user: IUser | false, info: object) => {
+        if (err) {
+          console.error("Google authentication error:", err); // Log the error
+          return new AppError("Google Authentication Error", 400);
+        }
+        if (!user) {
+          console.log("Authentication failed:", info); // Log failure info
+          return sendResponse(
+            response,
+            401,
+            "Failure",
+            constants.ERROR_MSG.LOGIN_FAILED,
+            {},
+          );
+        }
+
+        request.logIn(user, (err) => {
+          if (err) {
+            console.error("Error logging in user:", err); // Log login error
+            return next(err);
+          }
+
+          const data = {
+            _id: user._id,
+            username: user.username,
+            email: user.email,
+            // Other user details
+          };
+
+          return sendResponse(response, 200, "Success", "", data);
+        });
+      },
+    )(request, response, next);
+  },
+);
+
+export {
+  signup,
+  login,
+  logout,
+  getProfile,
+  loginByPhone,
+  sendOtp,
+  verifyOtp,
+  googleAuth,
+  googleAuthCallback,
+};

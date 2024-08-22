@@ -1,6 +1,7 @@
 import passport from "passport";
 import { Strategy as LocalStrategy, VerifyFunction } from "passport-local";
 import { Strategy as CustomStrategy } from "passport-custom";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import bcrypt from "bcrypt";
 import { constants } from "../constants/user.constants";
 import { IUser, User } from "../models/users";
@@ -79,8 +80,16 @@ const authenticateOtp = async (
 
     const user = await User.findOne({ phone }).exec();
     if (!user) {
-      // Debugging: Log user not found case
-      console.log(`User not found for phone: ${phone}`);
+      // Create new user
+      const newUser = await new User({
+        phone: phone,
+      }).save();
+
+      done(null, newUser);
+
+      console.log(
+        `User not found for phone,So created new user with this : ${phone}`
+      );
       return done(new AppError("User not found", 404), false);
     }
 
@@ -144,6 +153,44 @@ passport.use(
   "otp",
   new CustomStrategy((req: unknown, done: DoneCallback) =>
     authenticateOtp(req, done)
+  )
+);
+
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "", // Your Client Secret
+      callbackURL: "http://localhost:8000/fwu/api/v1/user/auth/google/callback",
+    },
+    async (
+      accessToken: string,
+      refreshToken: string,
+      profile: any,
+      done: Function
+    ) => {
+      try {
+        console.log("Access Token:", accessToken);
+        console.log("Refresh Token:", refreshToken);
+        console.log("Profile:", profile);
+
+        const existingUser = await User.findOne({ googleId: profile.id });
+        if (existingUser) {
+          return done(null, existingUser);
+        }
+
+        const newUser = await new User({
+          googleId: profile.id,
+          username: profile.displayName,
+          email: profile.emails[0].value,
+        }).save();
+
+        done(null, newUser);
+      } catch (err: any) {
+        console.log(err.message);
+        throw new AppError(err, 400);
+      }
+    }
   )
 );
 export default passport;
