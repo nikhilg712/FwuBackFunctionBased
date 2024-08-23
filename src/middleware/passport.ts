@@ -9,9 +9,9 @@ import { IAddress } from "../models/address";
 import { ICountry } from "../models/country";
 import { AppError } from "../utils/appError";
 import { catchAsync } from "../utils/responseUtils";
-import OTP from "../models/phoneotp";
 import { OtpRequestBody } from "../interface/user.interface";
 import dotenv from "dotenv";
+import OTP from "../models/otp";
 dotenv.config();
 
 // Define the type for the `done` callback function

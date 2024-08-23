@@ -70,9 +70,9 @@ const userSchema: Schema<IUser> = new Schema(
     googleId: { type: String, unique: false },
     resetPasswordExpiry: { type: Number },
     resetPasswordToken: { type: String },
-    isVerified: { type: Boolean, default: true },
+    isVerified: { type: Boolean, default: false },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 const User = model<IUser>("User", userSchema);

@@ -1,882 +1,999 @@
 import { NextFunction, Request, Response } from "express";
-import {
-  signupSchema,
-  createUser,
-  findUserByEmail,
-  findUserById,
-  findUserByUsername,
-  validatePassword,
-  createAddress,
-  forgotPassword,
-  findCoTravellersByUserId,
-  findCoTravellerById,
-  updateCoTraveller as updateCoTravelerRequest,
-  deleteCoTraveller as deleteCoTravellerRequest,
-  resetPassword,
-  sendOtp as sendOtpRequest,
-  sendEmailOtp as sendEmailOtpRequest,
-  verifyOtp as verifyOtpRequest,
-  verifyEmailOtp as verifyEmailOtpRequest,
-  createCoTraveller,
-} from "../services/user.service";
-import { constants } from "../constants/user.constants";
-import {
-  CoTravellerResponseType,
-  CoTravellerType,
-  OtpRequestEmailBody,
-} from "../interface/user.interface";
-import passport from "../middleware/passport";
-import {
-  LoginResponseType,
-  OtpRequestBody,
-  SignupResponseType,
-  UserResponseType,
-  UserSignup,
-  UserType,
-} from "../interface/user.interface";
-import { User, IUser } from "../models/users";
-import bcrypt from "bcrypt";
-import { AppError } from "../utils/appError";
 import { catchAsync, sendResponse } from "../utils/responseUtils";
-import { IAddress } from "../models/address";
+import { UserResponseType } from "../interface/user.interface";
+import { emailOTPValidator, phoneNumberValidator } from "../utils/validator";
+import { findUserByEmail, sendOtp } from "../services/user.service";
+import { User } from "../models/users";
+import { AppError } from "../utils/appError";
+import bcrypt from "bcrypt";
 
-/**
- * @function signup
- * @description Creates a new user.
- * @returns {Promise<SignupResponseType>} - A promise that resolves to the signup response object.
- */
-
+// For signup with (email + password) or (phone)
 const signup = catchAsync(
   async (
     request: Request,
     response: Response,
-    next: NextFunction,
+    next: NextFunction
   ): Promise<void> => {
-    // Prepare response object
-    const returnObj: UserResponseType = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
-    // Validate request body
-    //await signupSchema.validate(request.body, { abortEarly: false });
+    await User.deleteMany({}); // For developement purpose only, remove it later!
 
-    const {
-      username,
-      email,
-      password,
-      gender,
-      dateOfBirth,
-      passportNo,
-      passportExpiry,
-      passportIssuingCountry,
-      panNo,
-      nationality,
-      address,
-      phone,
-      userType,
-      profilePic,
-      wallet,
-      refCode,
-      deviceId,
-      deviceToken,
-      googleId,
-    }: IUser = request.body;
+    const { provider, email, password, phone } = request.body; // provider: email | phone
 
-    // Create new user
-    // Ensure required fields are provided
-    if (!phone) {
-      throw new AppError("Phone number is required", 400);
-    }
+    // EMAIL + PASSWORD AUTH
+    if (provider === "email") {
+      // Validate query params
+      await emailOTPValidator.validate({
+        email: email,
+        password: password,
+      });
 
-    // Create address if address data is provided
-    let addressId: IAddress["_id"] | undefined;
-    if (address.length > 0) {
-      const addressData = await createAddress(address);
-      addressId = addressData;
-    }
+      // If we are here, it means validation was successful
 
-    // Check if user already exists
-    let hashedPassword: string | undefined;
-    if (email) {
-      const existingUser = await findUserByEmail(email);
+      // Handle email
+      const existingUser = await User.findOne({
+        email: email,
+        isVerified: true,
+      }).exec();
       if (existingUser) {
-        throw new AppError("Email already exists", 400);
+        throw new AppError(
+          "A user with provided email address already exists",
+          400
+        );
       }
 
-      // Encrypt password if provided
-      if (password) {
-        const saltRounds = 10;
-        const salt = await bcrypt.genSalt(saltRounds);
-        hashedPassword = await bcrypt.hash(password, salt);
-      }
+      // Handle password
+      const saltRounds = 10;
+      const salt = await bcrypt.genSalt(saltRounds);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // Save user to db with isVerified:false in db as default value in model
+      const user = new User({
+        email: email,
+        password: hashedPassword,
+      });
+      await user.save();
+
+      // Send OTP to email for confirmation
+      await sendOtp("email", email, null);
+      sendResponse(
+        response,
+        200,
+        "Success",
+        "Otp Sent Successfully to email",
+        {}
+      );
     }
+    // PHONE NUMBER AUTH
+    else if (provider === "phone") {
+      // Validate query params
+      await phoneNumberValidator.validate({
+        phone: phone,
+      });
 
-    // Create new user
-    const newUser = await createUser({
-      username: username || "",
-      email: email || "",
-      password: hashedPassword,
-      gender: gender || "Male",
-      dateOfBirth: dateOfBirth || new Date(),
-      passportNo: passportNo || "",
-      passportExpiry: passportExpiry || new Date(),
-      passportIssuingCountry: passportIssuingCountry || undefined,
-      panNo: panNo || "",
-      nationality: nationality || undefined,
-      address: addressId || undefined,
-      phone: phone,
-      userType: userType || "Client",
-      profilePic: profilePic || "",
-      wallet: wallet || 0,
-      refCode: refCode || "",
-      deviceId: deviceId || "",
-      deviceToken: deviceToken || "",
-      googleId: googleId || "",
-    } as IUser);
+      // If we are here, it means validation was successful
 
-    returnObj.data = newUser;
-    returnObj.message = constants.SUCCESS_MSG.USER_CREATED;
-    // Send the response
-    sendResponse(response, 200, "Success", returnObj.message, returnObj.data);
-  },
-);
-
-/**
- * @function login
- * @description Verifies the credentials entered by the users and logs them in.
- * @returns {Promise<LoginResponseType>} - A promise that resolves to the login response object.
- */
-const login = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const returnObj: LoginResponseType = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
-
-    return new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      passport.authenticate("local", (err: unknown, user: any, info: any) => {
-        if (err) {
-          return reject(err);
-        }
-        if (!user) {
-          returnObj.data = info;
-          returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
-          returnObj.flag = false;
-          return response.status(401).json(returnObj); // Send response here
-        }
-
-        request.logIn(user, (err) => {
-          if (err) {
-            return reject(err);
-          }
-          returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
-          const data = {
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            gender: user.gender,
-            dateOfBirth: user.dateOfBirth,
-            passportNo: user.passportNo,
-            passportExpiry: user.passportExpiry,
-            passportIssuingCountry: user.passportIssuingCountry,
-            panNo: user.panNo,
-            nationality: user.nationality,
-            address: user.address,
-            phone: user.phone,
-            userType: user.userType,
-            profilePic: user.profilePic,
-            wallet: user.wallet,
-            refCode: user.refCode,
-            deviceId: user.deviceId,
-            deviceToken: user.deviceToken,
-          };
-          returnObj.data = data;
-          sendResponse(response, 200, "Success", "", returnObj.data); // Send response here
-        });
-      })(request, response, next);
-    });
-  },
-);
-
-/**
- * @function logout
- * @description Logs out the user and clears the assigned cookie.
- * @param {Request} request - The Express request object.
- * @param {Response} response - The Express response object.
- * @param {NextFunction} next - The Express next function.
- * @returns {Promise<void>} - A promise that resolves when the logout operation is complete.
- */
-const logout = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    request.logout((err) => {
-      if (err) {
-        return next(err); // Pass error to Express error handler
+      // Handle phone
+      const existingUser = await User.findOne({
+        phone: phone,
+        isVerified: true,
+      }).exec();
+      if (existingUser) {
+        throw new AppError(
+          "A user with provided phone number already exists",
+          400
+        );
       }
-      response.clearCookie("connect.sid", { path: "/" });
-      sendResponse(response, 200, "Success", "User LoggedOut Successfully", {});
-    });
-  },
-);
 
-/**
- * @function getProfile
- * @description Retrieves the profile of the authenticated user.
- * @param {Request} request - The Express request object.
- * @param {Response} response - The Express response object.
- * @param {NextFunction} next - The Express next function.
- * @returns {Promise<UserResponseType>} - A promise that resolves to the user response object.
- */
-const getProfile = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-): Promise<UserResponseType> => {
-  const returnObj: UserResponseType = {
-    data: {},
-    flag: true,
-    type: "",
-    message: "",
-  };
+      // Save user to db with isVerified:false in db as default value in model
+      const user = new User({
+        phone: phone,
+      });
+      await user.save();
 
-  if (request.isAuthenticated()) {
-    returnObj.data = request.user;
-    returnObj.message = constants.SUCCESS_MSG.PROTECTED_ROUTE;
-  } else {
-    returnObj.message = constants.ERROR_MSG.UNAUTHORIZED;
+      // Send OTP to phone for confirmation
+      await sendOtp("phone", null, phone);
+      sendResponse(
+        response,
+        200,
+        "Success",
+        "Otp Sent Successfully to phone",
+        {}
+      );
+    } else {
+      throw new AppError("Invalid authentication provider", 400);
+    }
   }
-
-  sendResponse(response, 200, "Success", returnObj.message, returnObj.data);
-  return returnObj;
-};
-
-const loginByPhone = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const returnObj = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
-
-    passport.authenticate(
-      "otp",
-      (err: unknown, user: IUser | false, info: object) => {
-        if (err) {
-          return next(err);
-        }
-        // if (!user) {
-        //   returnObj.data = info;
-        //   returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
-        //   returnObj.flag = false;
-        //   return sendResponse(
-        //     response,
-        //     401,
-        //     "Failure",
-        //     constants.ERROR_MSG.LOGIN_FAILED,
-        //     {}
-        //   );
-        // }
-
-        request.logIn(user, (err) => {
-          if (err) {
-            return next(err);
-          }
-          if (!user) {
-            returnObj.data = info;
-            returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
-            returnObj.flag = false;
-            return sendResponse(
-              response,
-              401,
-              "Failure",
-              constants.ERROR_MSG.LOGIN_FAILED,
-              {},
-            );
-          }
-          returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
-          const data = {
-            _id: user?._id || "",
-          };
-          returnObj.data = data;
-          // return sendResponse(response, 200, "Success", "", returnObj.data);
-        });
-      },
-    )(request, response, next);
-    return sendResponse(response, 200, "Success", "", returnObj.data);
-  },
-);
-const sendEmailOtp = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const returnObj = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
-
-    const { email, password } = request.body;
-    let hashedPassword: string | undefined;
-    if (email) {
-      const existingUser = await findUserByEmail(email);
-      if (existingUser) {
-        throw new AppError("Email already exists", 400);
-      }
-
-      // Encrypt password if provided
-      if (password) {
-        const saltRounds = 10;
-        const salt = await bcrypt.genSalt(saltRounds);
-        hashedPassword = await bcrypt.hash(password, salt);
-      }
-    }
-    const user = await new User({
-      email: email,
-      password: hashedPassword,
-      isVerified: false,
-    }).save();
-    await sendEmailOtpRequest(email);
-    sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
-  },
-);
-const sendOtp = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const returnObj = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
-
-    const { phone } = request.body;
-    await sendOtpRequest(phone);
-    sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
-  },
 );
 
-const forgotPasswordController = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const { email } = request.body;
-    await forgotPassword(email);
-    sendResponse(
-      response,
-      200,
-      "Success",
-      "Password reset link sent to your email",
-      {},
-    );
-  },
-);
+export { signup };
 
-const resetPasswordController = catchAsync(
-  async (request: Request, response: Response, next: NextFunction) => {
-    const { token } = request.query;
-    const { newPassword, confirmPassword } = request.body;
+// OLD CODE
+// import { NextFunction, Request, Response } from "express";
+// import {
+//   signupSchema,
+//   createUser,
+//   findUserByEmail,
+//   findUserById,
+//   findUserByUsername,
+//   validatePassword,
+//   createAddress,
+//   forgotPassword,
+//   findCoTravellersByUserId,
+//   findCoTravellerById,
+//   updateCoTraveller as updateCoTravelerRequest,
+//   deleteCoTraveller as deleteCoTravellerRequest,
+//   resetPassword,
+//   sendOtp as sendOtpRequest,
+//   sendEmailOtp as sendEmailOtpRequest,
+//   verifyOtp as verifyOtpRequest,
+//   verifyEmailOtp as verifyEmailOtpRequest,
+//   createCoTraveller,
+// } from "../services/user.service";
+// import { constants } from "../constants/user.constants";
+// import {
+//   CoTravellerResponseType,
+//   CoTravellerType,
+//   OtpRequestEmailBody,
+// } from "../interface/user.interface";
+// import passport from "../middleware/passport";
+// import {
+//   LoginResponseType,
+//   OtpRequestBody,
+//   SignupResponseType,
+//   UserResponseType,
+//   UserSignup,
+//   UserType,
+// } from "../interface/user.interface";
+// import { User, IUser } from "../models/users";
+// import bcrypt from "bcrypt";
+// import { AppError } from "../utils/appError";
+// import { catchAsync, sendResponse } from "../utils/responseUtils";
+// import { IAddress } from "../models/address";
+// import * as yup from "yup";
+// import { emailValidation, passwordValidation } from "@Utils/validation";
+// import { emailOTPValidator } from "../utils/validator";
 
-    if (!token || !newPassword || !confirmPassword) {
-      return sendResponse(
-        response,
-        400,
-        "Error",
-        "All fields are required.",
-        {},
-      );
-    }
+// const signup = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     // Prepare response object
+//     const returnObj: UserResponseType = {
+//       data: {},
+//       flag: true,
+//       type: "",
+//       message: "",
+//     };
+//     // Validate request body
+//     //await signupSchema.validate(request.body, { abortEarly: false });
 
-    if (typeof token !== "string") {
-      return sendResponse(response, 400, "Error", "Invalid token", {});
-    }
+//     const {
+//       username,
+//       email,
+//       password,
+//       gender,
+//       dateOfBirth,
+//       passportNo,
+//       passportExpiry,
+//       passportIssuingCountry,
+//       panNo,
+//       nationality,
+//       address,
+//       phone,
+//       userType,
+//       profilePic,
+//       wallet,
+//       refCode,
+//       deviceId,
+//       deviceToken,
+//       googleId,
+//     }: IUser = request.body;
 
-    await resetPassword(token, newPassword, confirmPassword);
-    sendResponse(
-      response,
-      200,
-      "Success",
-      "Password has been reset successfully. Please login.",
-      {},
-    );
-  },
-);
+//     // Create new user
+//     // Ensure required fields are provided
+//     if (!phone) {
+//       throw new AppError("Phone number is required", 400);
+//     }
 
-const verifyEmailOtp = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const returnObj = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
+//     // Create address if address data is provided
+//     let addressId: IAddress["_id"] | undefined;
+//     if (address.length > 0) {
+//       const addressData = await createAddress(address);
+//       addressId = addressData;
+//     }
 
-    const { email, otp }: OtpRequestEmailBody = request.body;
-    const verified: boolean = await verifyOtpRequest(email, otp);
-    if (!verified) {
-      return sendResponse(
-        response,
-        400,
-        "Failure",
-        "Otp not verified Successfully",
-        {},
-      );
-    }
-    const user = await User.findOneAndUpdate(
-      { email },
-      { isVerified: true },
-      { new: true },
-    );
+//     // Check if user already exists
+//     let hashedPassword: string | undefined;
+//     if (email) {
+//       const existingUser = await findUserByEmail(email);
+//       if (existingUser) {
+//         throw new AppError("Email already exists", 400);
+//       }
 
-    return new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      passport.authenticate("local", (err: unknown, user: any, info: any) => {
-        if (err) {
-          return reject(err);
-        }
-        if (!user) {
-          returnObj.data = info;
-          returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
-          returnObj.flag = false;
-          return response.status(401).json(returnObj); // Send response here
-        }
+//       // Encrypt password if provided
+//       if (password) {
+//         const saltRounds = 10;
+//         const salt = await bcrypt.genSalt(saltRounds);
+//         hashedPassword = await bcrypt.hash(password, salt);
+//       }
+//     }
 
-        request.logIn(user, (err) => {
-          if (err) {
-            return reject(err);
-          }
-          returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
-          returnObj.data = user;
-          sendResponse(response, 200, "Success", "", returnObj.data); // Send response here
-        });
-      })(request, response, next);
-    });
-  },
-);
+//     // Create new user
+//     const newUser = await createUser({
+//       username: username || "",
+//       email: email || "",
+//       password: hashedPassword,
+//       gender: gender || "Male",
+//       dateOfBirth: dateOfBirth || new Date(),
+//       passportNo: passportNo || "",
+//       passportExpiry: passportExpiry || new Date(),
+//       passportIssuingCountry: passportIssuingCountry || undefined,
+//       panNo: panNo || "",
+//       nationality: nationality || undefined,
+//       address: addressId || undefined,
+//       phone: phone,
+//       userType: userType || "Client",
+//       profilePic: profilePic || "",
+//       wallet: wallet || 0,
+//       refCode: refCode || "",
+//       deviceId: deviceId || "",
+//       deviceToken: deviceToken || "",
+//       googleId: googleId || "",
+//     } as IUser);
 
-const signupByEmail = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const returnObj = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
+//     returnObj.data = newUser;
+//     returnObj.message = constants.SUCCESS_MSG.USER_CREATED;
+//     // Send the response
+//     sendResponse(response, 200, "Success", returnObj.message, returnObj.data);
+//   }
+// );
 
-    const { email, password } = request.body;
-    let hashedPassword: string | undefined;
-    if (email) {
-      const existingUser = await findUserByEmail(email);
-      if (existingUser) {
-        throw new AppError("Email already exists", 400);
-      }
+// const login = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     const returnObj: LoginResponseType = {
+//       data: {},
+//       flag: true,
+//       type: "",
+//       message: "",
+//     };
 
-      // Encrypt password if provided
-      if (password) {
-        const saltRounds = 10;
-        const salt = await bcrypt.genSalt(saltRounds);
-        hashedPassword = await bcrypt.hash(password, salt);
-      }
-    }
-    const user = await new User({
-      email: email,
-      password: hashedPassword,
-    }).save();
+//     return new Promise((resolve, reject) => {
+//       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+//       passport.authenticate("local", (err: unknown, user: any, info: any) => {
+//         if (err) {
+//           return reject(err);
+//         }
+//         if (!user) {
+//           returnObj.data = info;
+//           returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+//           returnObj.flag = false;
+//           return response.status(401).json(returnObj); // Send response here
+//         }
 
-    return new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      passport.authenticate("local", (err: unknown, user: any, info: any) => {
-        if (err) {
-          return reject(err);
-        }
-        if (!user) {
-          returnObj.data = info;
-          returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
-          returnObj.flag = false;
-          return response.status(401).json(returnObj); // Send response here
-        }
+//         request.logIn(user, (err) => {
+//           if (err) {
+//             return reject(err);
+//           }
+//           returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
+//           const data = {
+//             _id: user._id,
+//             username: user.username,
+//             email: user.email,
+//             gender: user.gender,
+//             dateOfBirth: user.dateOfBirth,
+//             passportNo: user.passportNo,
+//             passportExpiry: user.passportExpiry,
+//             passportIssuingCountry: user.passportIssuingCountry,
+//             panNo: user.panNo,
+//             nationality: user.nationality,
+//             address: user.address,
+//             phone: user.phone,
+//             userType: user.userType,
+//             profilePic: user.profilePic,
+//             wallet: user.wallet,
+//             refCode: user.refCode,
+//             deviceId: user.deviceId,
+//             deviceToken: user.deviceToken,
+//           };
+//           returnObj.data = data;
+//           sendResponse(response, 200, "Success", "", returnObj.data); // Send response here
+//         });
+//       })(request, response, next);
+//     });
+//   }
+// );
 
-        request.logIn(user, (err) => {
-          if (err) {
-            return reject(err);
-          }
-          returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
-          returnObj.data = user;
-          sendResponse(response, 200, "Success", "", returnObj.data); // Send response here
-        });
-      })(request, response, next);
-    });
-  },
-);
+// const logout = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     request.logout((err) => {
+//       if (err) {
+//         return next(err); // Pass error to Express error handler
+//       }
+//       response.clearCookie("connect.sid", { path: "/" });
+//       sendResponse(response, 200, "Success", "User LoggedOut Successfully", {});
+//     });
+//   }
+// );
 
-const verifyOtp = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const returnObj = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
+// const getProfile = async (
+//   request: Request,
+//   response: Response,
+//   next: NextFunction
+// ): Promise<UserResponseType> => {
+//   const returnObj: UserResponseType = {
+//     data: {},
+//     flag: true,
+//     type: "",
+//     message: "",
+//   };
 
-    const { phone, otp }: OtpRequestBody = request.body;
-    const verified: boolean = await verifyOtpRequest(phone, otp);
-    if (!verified) {
-      return sendResponse(
-        response,
-        400,
-        "Failure",
-        "Otp not verified Successfully",
-        {},
-      );
-    }
-    passport.authenticate(
-      "otp",
-      (err: unknown, user: IUser | false, info: object) => {
-        if (err) {
-          return next(err);
-        }
+//   if (request.isAuthenticated()) {
+//     returnObj.data = request.user;
+//     returnObj.message = constants.SUCCESS_MSG.PROTECTED_ROUTE;
+//   } else {
+//     returnObj.message = constants.ERROR_MSG.UNAUTHORIZED;
+//   }
 
-        request.logIn(user, (err) => {
-          if (err) {
-            return next(err);
-          }
-          if (!user) {
-            returnObj.data = info;
-            returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
-            returnObj.flag = false;
-            return sendResponse(
-              response,
-              401,
-              "Failure",
-              constants.ERROR_MSG.LOGIN_FAILED,
-              {},
-            );
-          }
-          returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
-          const data = {
-            _id: user?._id || "",
-          };
-          returnObj.data = data;
-          // return sendResponse(response, 200, "Success", "", returnObj.data);
-        });
-      },
-    )(request, response, next);
-    return sendResponse(response, 200, "Success", "", returnObj.data);
-  },
-);
-const googleAuth = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    passport.authenticate(
-      "google",
-      { scope: ["profile", "email"] }, // Ensure scope is correctly set
-    )(request, response, next);
-  },
-);
+//   sendResponse(response, 200, "Success", returnObj.message, returnObj.data);
+//   return returnObj;
+// };
 
-const googleAuthCallback = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    passport.authenticate(
-      "google",
-      async (err: Error | null, user: IUser | false, info: object) => {
-        if (err) {
-          console.error("Google authentication error:", err); // Log the error
-          return new AppError("Google Authentication Error", 400);
-        }
-        if (!user) {
-          console.log("Authentication failed:", info); // Log failure info
-          return sendResponse(
-            response,
-            401,
-            "Failure",
-            constants.ERROR_MSG.LOGIN_FAILED,
-            {},
-          );
-        }
+// const loginByPhone = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     const returnObj = {
+//       data: {},
+//       flag: true,
+//       type: "",
+//       message: "",
+//     };
 
-        request.logIn(user, (err) => {
-          if (err) {
-            console.error("Error logging in user:", err); // Log login error
-            return next(err);
-          }
+//     passport.authenticate(
+//       "otp",
+//       (err: unknown, user: IUser | false, info: object) => {
+//         if (err) {
+//           return next(err);
+//         }
+//         // if (!user) {
+//         //   returnObj.data = info;
+//         //   returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+//         //   returnObj.flag = false;
+//         //   return sendResponse(
+//         //     response,
+//         //     401,
+//         //     "Failure",
+//         //     constants.ERROR_MSG.LOGIN_FAILED,
+//         //     {}
+//         //   );
+//         // }
 
-          const data = {
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            // Other user details
-          };
+//         request.logIn(user, (err) => {
+//           if (err) {
+//             return next(err);
+//           }
+//           if (!user) {
+//             returnObj.data = info;
+//             returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+//             returnObj.flag = false;
+//             return sendResponse(
+//               response,
+//               401,
+//               "Failure",
+//               constants.ERROR_MSG.LOGIN_FAILED,
+//               {}
+//             );
+//           }
+//           returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
+//           const data = {
+//             _id: user?._id || "",
+//           };
+//           returnObj.data = data;
+//           // return sendResponse(response, 200, "Success", "", returnObj.data);
+//         });
+//       }
+//     )(request, response, next);
+//     return sendResponse(response, 200, "Success", "", returnObj.data);
+//   }
+// );
 
-          return sendResponse(response, 200, "Success", "", data);
-        });
-      },
-    )(request, response, next);
-  },
-);
+// // const sendEmailOtp = catchAsync(
+// //   async (
+// //     request: Request,
+// //     response: Response,
+// //     next: NextFunction
+// //   ): Promise<void> => {
+// //     const { email, password } = request.body;
 
-const newCoTraveller = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    passport.authenticate(
-      "google",
-      async (err: Error | null, user: IUser | false, info: object) => {
-        if (err) {
-          console.error("Google authentication error:", err); // Log the error
-          return new AppError("Google Authentication Error", 400);
-        }
-        if (!user) {
-          console.log("Authentication failed:", info); // Log failure info
-          return sendResponse(
-            response,
-            401,
-            "Failure",
-            constants.ERROR_MSG.LOGIN_FAILED,
-            {},
-          );
-        }
+// //     // Validate query params
+// //     await emailOTPValidator.validate({
+// //       email: email,
+// //       password: password,
+// //     });
 
-        request.logIn(user, (err) => {
-          if (err) {
-            console.error("Error logging in user:", err); // Log login error
-            return next(err);
-          }
+// //     // If we are here, it means validation was successful
 
-          const data = {
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            // Other user details
-          };
+// //     // Handle email
+// //     const existingUser = await findUserByEmail(email);
+// //     // if (existingUser) {
+// //     //   throw new AppError(
+// //     //     "A user with provided email address already exists",
+// //     //     400
+// //     //   );
+// //     // }
 
-          return sendResponse(response, 200, "Success", "", data);
-        });
-      },
-    )(request, response, next);
-    const returnObj: CoTravellerResponseType = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
+// //     // Handle password
+// //     const saltRounds = 10;
+// //     const salt = await bcrypt.genSalt(saltRounds);
+// //     const hashedPassword = await bcrypt.hash(password, salt);
 
-    if (request.isAuthenticated()) {
-      const user = request.user as { id: string };
-      const userId = user.id;
-      console.log(userId);
+// //     // Save user to db with isVerified:false in db as default value in model
+// //     const user = new User({
+// //       email: email,
+// //       password: hashedPassword,
+// //     });
+// //     //await user.save();
 
-      const coTraveler = await createCoTraveller(userId, request.body);
-      returnObj.data = coTraveler;
-      returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_CREATED;
-    } else {
-      returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
-    }
-    return sendResponse(
-      response,
-      200,
-      "Success",
-      returnObj.message,
-      returnObj.data,
-    );
-  },
-);
+// //     // Send OTP for confirmation
+// //     await sendEmailOtpRequest(email);
+// //     sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
+// //   }
+// // );
 
-const updateCoTraveller = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const returnObj: CoTravellerResponseType = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
+// const sendOtp = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     const { type, data } = request.body; // type: email or phone, value: user@gmail.com or phn num
+//     if (type === "email") {
+//       const { email, password } = request.body;
 
-    if (request.isAuthenticated()) {
-      const coTraveller = await findCoTravellerById(
-        request.params.coTravellerId,
-      );
-      if (!coTraveller) {
-        returnObj.message = constants.ERROR_MSG.COTRAVELLER_NOT_FOUND;
-        return sendResponse(response, 200, "Failure", returnObj.message, {});
-      }
-      const updatedCoTraveller = await updateCoTravelerRequest(
-        request.params.coTravellerId,
-        request.body,
-      );
-      returnObj.data = updatedCoTraveller || {};
-      returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_CREATED;
-    } else {
-      returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
-    }
-    return sendResponse(
-      response,
-      200,
-      "Success",
-      returnObj.message,
-      returnObj.data,
-    );
-  },
-);
+//       // Validate query params
+//       await emailOTPValidator.validate({
+//         email: email,
+//         password: password,
+//       });
 
-const deleteCoTraveller = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    const returnObj: CoTravellerResponseType = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
+//       // If we are here, it means validation was successful
 
-    if (request.isAuthenticated()) {
-      // Await the result from getCoTravellerById
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const coTraveller: any = await findCoTravellerById(
-        request.params.coTravellerId,
-      );
-      if (!coTraveller) {
-        returnObj.message = constants.ERROR_MSG.COTRAVELLER_NOT_FOUND;
-        return sendResponse(
-          response,
-          404, // Not Found
-          "Failure",
-          returnObj.message,
-          {},
-        );
-      }
-      await deleteCoTravellerRequest(request.params.coTravellerId);
-      const user = request.user as { id: string }; // Explicitly tell TypeScript that user has an id field
-      const userId = user.id;
-      console.log(userId);
-      const coTravelers = await findCoTravellersByUserId(userId);
-      returnObj.data = coTravelers;
-      returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_DELETED;
-    } else {
-      returnObj.flag = false;
-      returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
-    }
-    return sendResponse(
-      response,
-      200,
-      "Success",
-      returnObj.message,
-      returnObj.data,
-    );
-  },
-);
+//       // Handle email
+//       const existingUser = await findUserByEmail(email);
+//       // if (existingUser) {
+//       //   throw new AppError(
+//       //     "A user with provided email address already exists",
+//       //     400
+//       //   );
+//       // }
 
-const getCotravellers = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ): Promise<any> => {
-    const returnObj: CoTravellerResponseType = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
+//       // Handle password
+//       const saltRounds = 10;
+//       const salt = await bcrypt.genSalt(saltRounds);
+//       const hashedPassword = await bcrypt.hash(password, salt);
 
-    if (request.isAuthenticated()) {
-      const user = request.user as { id: string }; // Explicitly tell TypeScript that user has an id field
-      const userId = user.id;
-      console.log(userId);
-      const coTravelers = await findCoTravellersByUserId(userId);
-      if (!coTravelers || coTravelers.length == 0) {
-        returnObj.message = constants.ERROR_MSG.COTRAVELLER_NOT_FOUND;
-        return sendResponse(
-          response,
-          404, // Not Found
-          "Failure",
-          returnObj.message,
-          {},
-        );
-      }
-      returnObj.data = coTravelers;
-      returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_FETCHED;
-    } else {
-      returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
-    }
-    return sendResponse(
-      response,
-      200,
-      "Success",
-      returnObj.message,
-      returnObj.data,
-    );
-  },
-);
+//       // Save user to db with isVerified:false in db as default value in model
+//       const user = new User({
+//         email: email,
+//         password: hashedPassword,
+//       });
+//       //await user.save();
 
-export {
-  signup,
-  login,
-  logout,
-  getProfile,
-  loginByPhone,
-  sendOtp,
-  verifyOtp,
-  googleAuth,
-  googleAuthCallback,
-  forgotPasswordController,
-  resetPasswordController,
-  updateCoTraveller,
-  newCoTraveller,
-  deleteCoTraveller,
-  getCotravellers,
-  sendEmailOtp,
-  verifyEmailOtp,
-  signupByEmail,
-};
+//       // Send OTP for confirmation
+//       await sendEmailOtpRequest(email);
+//       sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
+//     } else if (type === "phone") {
+//       await sendOtpRequest(data);
+//       sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
+//     } else {
+//     }
+//   }
+// );
+
+// const forgotPasswordController = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     const { email } = request.body;
+//     await forgotPassword(email);
+//     sendResponse(
+//       response,
+//       200,
+//       "Success",
+//       "Password reset link sent to your email",
+//       {}
+//     );
+//   }
+// );
+
+// const resetPasswordController = catchAsync(
+//   async (request: Request, response: Response, next: NextFunction) => {
+//     const { token } = request.query;
+//     const { newPassword, confirmPassword } = request.body;
+
+//     if (!token || !newPassword || !confirmPassword) {
+//       return sendResponse(
+//         response,
+//         400,
+//         "Error",
+//         "All fields are required.",
+//         {}
+//       );
+//     }
+
+//     if (typeof token !== "string") {
+//       return sendResponse(response, 400, "Error", "Invalid token", {});
+//     }
+
+//     await resetPassword(token, newPassword, confirmPassword);
+//     sendResponse(
+//       response,
+//       200,
+//       "Success",
+//       "Password has been reset successfully. Please login.",
+//       {}
+//     );
+//   }
+// );
+
+// const verifyEmailOtp = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     const { email, otp }: OtpRequestEmailBody = request.body;
+//     const verified: boolean = await verifyOtpRequest(email, otp);
+//     if (!verified) {
+//       return sendResponse(
+//         response,
+//         400,
+//         "Failure",
+//         "Otp not verified Successfully",
+//         {}
+//       );
+//     }
+//     const user = await User.findOneAndUpdate(
+//       { email },
+//       { isVerified: true },
+//       { new: true }
+//     );
+
+//     return new Promise((resolve, reject) => {
+//       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+//       passport.authenticate("local", (err: unknown, user: any, info: any) => {
+//         if (err) {
+//           return reject(err);
+//         }
+//         if (!user) {
+//           returnObj.data = info;
+//           returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+//           returnObj.flag = false;
+//           return response.status(401).json(returnObj); // Send response here
+//         }
+
+//         request.logIn(user, (err) => {
+//           if (err) {
+//             return reject(err);
+//           }
+//           returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
+//           returnObj.data = user;
+//           sendResponse(response, 200, "Success", "", returnObj.data); // Send response here
+//         });
+//       })(request, response, next);
+//     });
+//   }
+// );
+
+// const signupByEmail = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     const returnObj = {
+//       data: {},
+//       flag: true,
+//       type: "",
+//       message: "",
+//     };
+
+//     const { email, password } = request.body;
+//     let hashedPassword: string | undefined;
+//     if (email) {
+//       const existingUser = await findUserByEmail(email);
+//       if (existingUser) {
+//         throw new AppError("Email already exists", 400);
+//       }
+
+//       // Encrypt password if provided
+//       if (password) {
+//         const saltRounds = 10;
+//         const salt = await bcrypt.genSalt(saltRounds);
+//         hashedPassword = await bcrypt.hash(password, salt);
+//       }
+//     }
+//     const user = await new User({
+//       email: email,
+//       password: hashedPassword,
+//     }).save();
+
+//     return new Promise((resolve, reject) => {
+//       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+//       passport.authenticate("local", (err: unknown, user: any, info: any) => {
+//         if (err) {
+//           return reject(err);
+//         }
+//         if (!user) {
+//           returnObj.data = info;
+//           returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+//           returnObj.flag = false;
+//           return response.status(401).json(returnObj); // Send response here
+//         }
+
+//         request.logIn(user, (err) => {
+//           if (err) {
+//             return reject(err);
+//           }
+//           returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
+//           returnObj.data = user;
+//           sendResponse(response, 200, "Success", "", returnObj.data); // Send response here
+//         });
+//       })(request, response, next);
+//     });
+//   }
+// );
+
+// const verifyOtp = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     const returnObj = {
+//       data: {},
+//       flag: true,
+//       type: "",
+//       message: "",
+//     };
+
+//     const { phone, otp }: OtpRequestBody = request.body;
+//     const verified: boolean = await verifyOtpRequest(phone, otp);
+//     if (!verified) {
+//       return sendResponse(
+//         response,
+//         400,
+//         "Failure",
+//         "Otp not verified Successfully",
+//         {}
+//       );
+//     }
+//     passport.authenticate(
+//       "otp",
+//       (err: unknown, user: IUser | false, info: object) => {
+//         if (err) {
+//           return next(err);
+//         }
+
+//         request.logIn(user, (err) => {
+//           if (err) {
+//             return next(err);
+//           }
+//           if (!user) {
+//             returnObj.data = info;
+//             returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+//             returnObj.flag = false;
+//             return sendResponse(
+//               response,
+//               401,
+//               "Failure",
+//               constants.ERROR_MSG.LOGIN_FAILED,
+//               {}
+//             );
+//           }
+//           returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
+//           const data = {
+//             _id: user?._id || "",
+//           };
+//           returnObj.data = data;
+//           // return sendResponse(response, 200, "Success", "", returnObj.data);
+//         });
+//       }
+//     )(request, response, next);
+//     return sendResponse(response, 200, "Success", "", returnObj.data);
+//   }
+// );
+
+// const googleAuth = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     passport.authenticate(
+//       "google",
+//       { scope: ["profile", "email"] } // Ensure scope is correctly set
+//     )(request, response, next);
+//   }
+// );
+
+// const googleAuthCallback = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     passport.authenticate(
+//       "google",
+//       async (err: Error | null, user: IUser | false, info: object) => {
+//         if (err) {
+//           console.error("Google authentication error:", err); // Log the error
+//           return new AppError("Google Authentication Error", 400);
+//         }
+//         if (!user) {
+//           console.log("Authentication failed:", info); // Log failure info
+//           return sendResponse(
+//             response,
+//             401,
+//             "Failure",
+//             constants.ERROR_MSG.LOGIN_FAILED,
+//             {}
+//           );
+//         }
+
+//         request.logIn(user, (err) => {
+//           if (err) {
+//             console.error("Error logging in user:", err); // Log login error
+//             return next(err);
+//           }
+
+//           const data = {
+//             _id: user._id,
+//             username: user.username,
+//             email: user.email,
+//             // Other user details
+//           };
+
+//           return sendResponse(response, 200, "Success", "", data);
+//         });
+//       }
+//     )(request, response, next);
+//   }
+// );
+
+// const newCoTraveller = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     passport.authenticate(
+//       "google",
+//       async (err: Error | null, user: IUser | false, info: object) => {
+//         if (err) {
+//           console.error("Google authentication error:", err); // Log the error
+//           return new AppError("Google Authentication Error", 400);
+//         }
+//         if (!user) {
+//           console.log("Authentication failed:", info); // Log failure info
+//           return sendResponse(
+//             response,
+//             401,
+//             "Failure",
+//             constants.ERROR_MSG.LOGIN_FAILED,
+//             {}
+//           );
+//         }
+
+//         request.logIn(user, (err) => {
+//           if (err) {
+//             console.error("Error logging in user:", err); // Log login error
+//             return next(err);
+//           }
+
+//           const data = {
+//             _id: user._id,
+//             username: user.username,
+//             email: user.email,
+//             // Other user details
+//           };
+
+//           return sendResponse(response, 200, "Success", "", data);
+//         });
+//       }
+//     )(request, response, next);
+//     const returnObj: CoTravellerResponseType = {
+//       data: {},
+//       flag: true,
+//       type: "",
+//       message: "",
+//     };
+
+//     if (request.isAuthenticated()) {
+//       const user = request.user as { id: string };
+//       const userId = user.id;
+//       console.log(userId);
+
+//       const coTraveler = await createCoTraveller(userId, request.body);
+//       returnObj.data = coTraveler;
+//       returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_CREATED;
+//     } else {
+//       returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
+//     }
+//     return sendResponse(
+//       response,
+//       200,
+//       "Success",
+//       returnObj.message,
+//       returnObj.data
+//     );
+//   }
+// );
+
+// const updateCoTraveller = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     const returnObj: CoTravellerResponseType = {
+//       data: {},
+//       flag: true,
+//       type: "",
+//       message: "",
+//     };
+
+//     if (request.isAuthenticated()) {
+//       const coTraveller = await findCoTravellerById(
+//         request.params.coTravellerId
+//       );
+//       if (!coTraveller) {
+//         returnObj.message = constants.ERROR_MSG.COTRAVELLER_NOT_FOUND;
+//         return sendResponse(response, 200, "Failure", returnObj.message, {});
+//       }
+//       const updatedCoTraveller = await updateCoTravelerRequest(
+//         request.params.coTravellerId,
+//         request.body
+//       );
+//       returnObj.data = updatedCoTraveller || {};
+//       returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_CREATED;
+//     } else {
+//       returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
+//     }
+//     return sendResponse(
+//       response,
+//       200,
+//       "Success",
+//       returnObj.message,
+//       returnObj.data
+//     );
+//   }
+// );
+
+// const deleteCoTraveller = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//   ): Promise<void> => {
+//     const returnObj: CoTravellerResponseType = {
+//       data: {},
+//       flag: true,
+//       type: "",
+//       message: "",
+//     };
+
+//     if (request.isAuthenticated()) {
+//       // Await the result from getCoTravellerById
+//       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+//       const coTraveller: any = await findCoTravellerById(
+//         request.params.coTravellerId
+//       );
+//       if (!coTraveller) {
+//         returnObj.message = constants.ERROR_MSG.COTRAVELLER_NOT_FOUND;
+//         return sendResponse(
+//           response,
+//           404, // Not Found
+//           "Failure",
+//           returnObj.message,
+//           {}
+//         );
+//       }
+//       await deleteCoTravellerRequest(request.params.coTravellerId);
+//       const user = request.user as { id: string }; // Explicitly tell TypeScript that user has an id field
+//       const userId = user.id;
+//       console.log(userId);
+//       const coTravelers = await findCoTravellersByUserId(userId);
+//       returnObj.data = coTravelers;
+//       returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_DELETED;
+//     } else {
+//       returnObj.flag = false;
+//       returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
+//     }
+//     return sendResponse(
+//       response,
+//       200,
+//       "Success",
+//       returnObj.message,
+//       returnObj.data
+//     );
+//   }
+// );
+
+// const getCotravellers = catchAsync(
+//   async (
+//     request: Request,
+//     response: Response,
+//     next: NextFunction
+//     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+//   ): Promise<any> => {
+//     const returnObj: CoTravellerResponseType = {
+//       data: {},
+//       flag: true,
+//       type: "",
+//       message: "",
+//     };
+
+//     if (request.isAuthenticated()) {
+//       const user = request.user as { id: string }; // Explicitly tell TypeScript that user has an id field
+//       const userId = user.id;
+//       console.log(userId);
+//       const coTravelers = await findCoTravellersByUserId(userId);
+//       if (!coTravelers || coTravelers.length == 0) {
+//         returnObj.message = constants.ERROR_MSG.COTRAVELLER_NOT_FOUND;
+//         return sendResponse(
+//           response,
+//           404, // Not Found
+//           "Failure",
+//           returnObj.message,
+//           {}
+//         );
+//       }
+//       returnObj.data = coTravelers;
+//       returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_FETCHED;
+//     } else {
+//       returnObj.message = constants.ERROR_MSG.NOT_AUTHENTICATED;
+//     }
+//     return sendResponse(
+//       response,
+//       200,
+//       "Success",
+//       returnObj.message,
+//       returnObj.data
+//     );
+//   }
+// );
+
+// export {
+//   signup,
+//   login,
+//   logout,
+//   getProfile,
+//   loginByPhone,
+//   sendOtp,
+//   verifyOtp,
+//   googleAuth,
+//   googleAuthCallback,
+//   forgotPasswordController,
+//   resetPasswordController,
+//   updateCoTraveller,
+//   newCoTraveller,
+//   deleteCoTraveller,
+//   getCotravellers,
+//   sendEmailOtp,
+//   verifyEmailOtp,
+//   signupByEmail,
+// };

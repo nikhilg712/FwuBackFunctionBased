@@ -1,23 +1,30 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-// Define the IOTP interface
-export interface IOTP extends Document {
-  phone: string;
+enum OTPType {
+  email = "email",
+  phone = "phone",
+}
+
+export interface IOtp extends Document {
+  type: OTPType;
+  email?: string;
+  phone?: string;
   otp: string;
   expiresAt: Date;
 }
 
 // Create the OTP schema
-const otpSchema: Schema<IOTP> = new Schema(
+const otpSchema: Schema<IOtp> = new Schema(
   {
-    phone: {
-      type: String,
-      required: true,
-      unique: true, // Ensure that each phone number has only one OTP
-    },
     otp: {
       type: String,
       required: true,
+    },
+    email: {
+      type: String,
+    },
+    phone: {
+      type: String,
     },
     expiresAt: {
       type: Date,
@@ -26,10 +33,10 @@ const otpSchema: Schema<IOTP> = new Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 // Create the OTP model
-const OTP = mongoose.model<IOTP>("OTP", otpSchema);
+const OTP = mongoose.model<IOtp>("OTP", otpSchema);
 
 export default OTP;

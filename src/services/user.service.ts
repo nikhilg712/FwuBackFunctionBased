@@ -9,14 +9,14 @@ import {
 import bcrypt from "bcrypt";
 import * as yup from "yup";
 import Address, { IAddress } from "../models/address";
-import OTP from "../models/phoneotp";
 import twilio from "twilio";
 import crypto from "crypto";
 import { AppError } from "../utils/appError";
 import dotenv from "dotenv";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { constants } from "../constants/user.constants";
-import EmailOtp from "../models/emailotp";
+import OTP from "../models/otp";
+import { generateOTPTemplate } from "../views/otp-template";
 
 dotenv.config();
 // Twilio configuration
@@ -157,7 +157,7 @@ const findUserByEmail = async (email: string): Promise<IUser | null> => {
  */
 const validatePassword = async (
   inputPassword: string,
-  storedPassword: string,
+  storedPassword: string
 ): Promise<boolean> => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
@@ -174,91 +174,133 @@ const findUserById = async (id: string): Promise<IUser | null> => {
 
 const sendEmailOtp = async (email: string): Promise<void> => {
   try {
-    // Generate a random OTP (e.g., 6 digits)
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
-    // Set OTP expiration time (e.g., 10 minutes)
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const otpValue = Math.floor(1000 + Math.random() * 9000).toString(); // Generate Random 6 digit number
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); //  Set OTP expiration time (e.g., 10 minutes)
 
     // Save OTP to database
+    let otp = new OTP({
+      type: "email",
+      email: email,
+      otp: otpValue,
+      expiresAt: expiresAt,
+    });
+    await otp.save();
 
-    await EmailOtp.findOneAndUpdate(
-      { email },
-      { otp, expiresAt },
-      { upsert: true, new: true },
-    );
-    // Send OTP via SMS
-    await sendEmail(
-      email,
-      `<p>Otp for email verification ${otp}</p> `,
-      "Email Verification",
-    );
-
+    // Send OTP via Email
+    let template = generateOTPTemplate(otpValue);
+    await sendEmail(email, template, "Email Verification");
     console.log("OTP sent successfully");
   } catch (error) {
     console.error("Error sending OTP:", error);
     throw new AppError("Some problem with otp-sending", 400);
   }
 };
-// Function to generate and send OTP
-const sendOtp = async (phone: string): Promise<void> => {
-  try {
-    // Generate a random OTP (e.g., 6 digits)
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // Set OTP expiration time (e.g., 10 minutes)
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+// Function to generate and send OTP
+const sendOtp = async (
+  provider: string,
+  email: string | null,
+  phone: string | null
+): Promise<void> => {
+  await OTP.deleteMany({})
+  if (provider === "email") {
+    const otpValue = Math.floor(1000 + Math.random() * 9000).toString(); // Generate Random 6 digit number
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); //  Set OTP expiration time (e.g., 10 minutes)
 
     // Save OTP to database
-    await OTP.findOneAndUpdate(
-      { phone },
-      { otp, expiresAt },
-      { upsert: true, new: true },
-    );
+    let otp = new OTP({
+      type: "email",
+      email: email,
+      otp: otpValue,
+      expiresAt: expiresAt,
+    });
+    await otp.save();
+
+    // Send OTP via Email
+    let template = generateOTPTemplate(otpValue);
+    await sendEmail(email!, template, "Email Verification");
+    console.log("OTP sent successfully");
+  } else if (provider === "phone") {
+    const otpValue = Math.floor(1000 + Math.random() * 9000).toString(); // Generate Random 6 digit number
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); //  Set OTP expiration time (e.g., 10 minutes)
+
+    // Save OTP to database
+    let otp = new OTP({
+      type: "phone",
+      phone: phone,
+      otp: otpValue,
+      expiresAt: expiresAt,
+    });
+    await otp.save();
 
     // Send OTP via SMS
-    await client.messages.create({
-      body: `Your OTP code is: ${otp}`,
+    let otpResponse = await client.messages.create({
+      body: `Dear Customer,
+    
+    Thank you for choosing Flew With Us. Your One-Time Password (OTP) for authentication is: ${otp.otp}
+    
+    This OTP is valid for the next 10 minutes. If you did not request this, please disregard this message.
+    
+    Best regards,
+    The Flew With Us Team`,
       from: process.env.TWILIO_PHONE_NUMBER, // Replace with your Twilio phone number
-      to: phone,
+      to: phone!,
     });
 
     console.log("OTP sent successfully");
-  } catch (error) {
-    console.error("Error sending OTP:", error);
-    throw new AppError("Some problem with otp-sending", 400);
+    console.log("OTP response: ", otpResponse);
+  } else {
+    throw new AppError("Invalid auth provider", 400);
   }
 };
 
-const verifyEmailOtp = async (email: string, otp: string): Promise<boolean> => {
-  // Find OTP from database
-  const otpRecord = await EmailOtp.findOne({ email, otp }).exec();
-  if (!otpRecord) {
-    throw new AppError("Invalid OTP or OTP has expired", 400);
+// const verifyEmailOtp = async (email: string, otp: string): Promise<boolean> => {
+//   // Find the newest OTP of a user
+//   const otpRecord = await OTP.findOne().sort({ createdAt: -1 }).exec();
+//   if (!otpRecord) {
+//     throw new AppError("No OTP found for the provided email", 400);
+//   } else if (otpRecord.otp !== otp) {
+//     throw new AppError("Invalid OTP, Please try again", 400);
+//   } else if (new Date().getTime() - otpRecord.expiresAt.getTime() > 0) {
+//     throw new AppError("OTP Expired, Please try again", 400);
+//   } else {
+//     return true;
+//   }
+// };
+
+// Function to verify OTP for email or phone
+const verifyOtp = async (
+  checkFor: string,
+  data: string,
+  otp: string
+): Promise<boolean> => {
+  let otpRecord;
+  if (checkFor === "email") {
+    otpRecord = await OTP.findOne({ email: data })
+      .sort({ createdAt: -1 })
+      .exec();
+  } else if (checkFor === "phone") {
+    otpRecord = await OTP.findOne({ phone: data })
+      .sort({ createdAt: -1 })
+      .exec();
+  } else {
+    throw new AppError("Invalid data type", 400);
   }
 
-  if (new Date() > otpRecord.expiresAt) {
-    throw new AppError("OTP has expired", 400);
-  }
-  return true;
-};
-// Function to verify OTP
-const verifyOtp = async (email: string, otp: string): Promise<boolean> => {
-  // Find OTP from database
-  const otpRecord = await EmailOtp.findOne({ email, otp }).exec();
   if (!otpRecord) {
-    throw new AppError("Invalid OTP or OTP has expired", 400);
+    throw new AppError("No OTP found for the provided email", 400);
+  } else if (otpRecord.otp !== otp) {
+    throw new AppError("Invalid OTP, Please try again", 400);
+  } else if (new Date().getTime() - otpRecord.expiresAt.getTime() > 0) {
+    throw new AppError("OTP Expired, Please try again", 400);
+  } else {
+    return true;
   }
-
-  if (new Date() > otpRecord.expiresAt) {
-    throw new AppError("OTP has expired", 400);
-  }
-  return true;
 };
 
 const createCoTraveller = async (
   userId: string,
-  coTravelerData: object,
+  coTravelerData: object
 ): Promise<CoTravellerType> => {
   const coTraveler = new CoTraveller({
     userId,
@@ -276,14 +318,14 @@ const createCoTraveller = async (
  */
 const updateCoTraveller = async (
   id: string,
-  coTravelerData: CoTravellerType,
+  coTravelerData: CoTravellerType
 ): Promise<CoTravellerType | null> => {
   const updatedCoTraveler = await CoTraveller.findByIdAndUpdate(
     id,
     coTravelerData,
     {
       new: true,
-    },
+    }
   ).exec();
 
   if (!updatedCoTraveler) {
@@ -302,7 +344,7 @@ const updateCoTraveller = async (
  */
 
 const findCoTravellersByUserId = async (
-  userId: string,
+  userId: string
 ): Promise<CoTravellerType[]> => {
   return await CoTraveller.find({ userId }).exec();
 };
@@ -315,7 +357,7 @@ const findCoTravellersByUserId = async (
  */
 
 const findCoTravellerById = async (
-  id: string,
+  id: string
 ): Promise<CoTravellerType | null> => {
   return await CoTraveller.findById(id).exec();
 };
@@ -328,7 +370,7 @@ const findCoTravellerById = async (
  */
 
 const deleteCoTraveller = async (
-  id: string,
+  id: string
 ): Promise<CoTravellerType | null> => {
   return await CoTraveller.findByIdAndDelete(id).exec();
 };
@@ -337,7 +379,7 @@ const deleteCoTraveller = async (
 const sendEmail = async (
   email: string,
   body: string,
-  subject: string,
+  subject: string
 ): Promise<void> => {
   const client = await createClient();
   await client.api("/users/support@flewwithus.com/sendMail").post({
@@ -401,7 +443,7 @@ const forgotPassword = async (email: string): Promise<void> => {
 const resetPassword = async (
   token: string,
   newPassword: string,
-  confirmPassword: string,
+  confirmPassword: string
 ) => {
   if (newPassword !== confirmPassword) {
     throw new AppError("Passwords do not match", 400);
@@ -427,7 +469,7 @@ const resetPassword = async (
     {
       $set: { password: hashedPassword },
       $unset: { resetPasswordToken: "", resetPasswordExpiry: "" },
-    },
+    }
   );
 };
 
@@ -451,5 +493,4 @@ export {
   deleteCoTraveller,
   sendEmail,
   sendEmailOtp,
-  verifyEmailOtp,
 };
