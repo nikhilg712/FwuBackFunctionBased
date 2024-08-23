@@ -33,6 +33,7 @@ interface IUser extends Document {
   googleId?: string;
   resetPasswordExpiry: number;
   resetPasswordToken: string;
+  isVerified: boolean;
 }
 
 // Create the schema with the IUser type
@@ -69,6 +70,7 @@ const userSchema: Schema<IUser> = new Schema(
     googleId: { type: String, unique: false },
     resetPasswordExpiry: { type: Number },
     resetPasswordToken: { type: String },
+    isVerified: { type: Boolean, default: true },
   },
   { timestamps: true },
 );

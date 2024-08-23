@@ -335,7 +335,26 @@ const sendEmailOtp = catchAsync(
       message: "",
     };
 
-    const { email } = request.body;
+    const { email, password } = request.body;
+    let hashedPassword: string | undefined;
+    if (email) {
+      const existingUser = await findUserByEmail(email);
+      if (existingUser) {
+        throw new AppError("Email already exists", 400);
+      }
+
+      // Encrypt password if provided
+      if (password) {
+        const saltRounds = 10;
+        const salt = await bcrypt.genSalt(saltRounds);
+        hashedPassword = await bcrypt.hash(password, salt);
+      }
+    }
+    const user = await new User({
+      email: email,
+      password: hashedPassword,
+      isVerified: false,
+    }).save();
     await sendEmailOtpRequest(email);
     sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
   },
@@ -431,13 +450,35 @@ const verifyEmailOtp = catchAsync(
         {},
       );
     }
-    return sendResponse(
-      response,
-      200,
-      "Verified Successfully",
-      "",
-      returnObj.data,
+    const user = await User.findOneAndUpdate(
+      { email },
+      { isVerified: true },
+      { new: true },
     );
+
+    return new Promise((resolve, reject) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      passport.authenticate("local", (err: unknown, user: any, info: any) => {
+        if (err) {
+          return reject(err);
+        }
+        if (!user) {
+          returnObj.data = info;
+          returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+          returnObj.flag = false;
+          return response.status(401).json(returnObj); // Send response here
+        }
+
+        request.logIn(user, (err) => {
+          if (err) {
+            return reject(err);
+          }
+          returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
+          returnObj.data = user;
+          sendResponse(response, 200, "Success", "", returnObj.data); // Send response here
+        });
+      })(request, response, next);
+    });
   },
 );
 
