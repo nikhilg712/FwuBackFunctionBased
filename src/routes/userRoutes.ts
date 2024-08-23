@@ -7,6 +7,8 @@ import {
   loginByPhone,
   sendOtp,
   verifyOtp,
+  sendEmailOtp,
+  verifyEmailOtp,
   googleAuth,
   googleAuthCallback,
   forgotPasswordController,
@@ -15,6 +17,7 @@ import {
   updateCoTraveller,
   newCoTraveller,
   deleteCoTraveller,
+  signupByEmail,
 } from "../controllers/userController";
 import passport from "passport";
 import { isAuthenticated } from "../middleware/authenticate";
@@ -37,23 +40,26 @@ const initializeRoutes = (router: Router) => {
 
   router.get(`${path}cotravellers`, isAuthenticated, getCotravellers);
   router.post(`${path}signup`, signup);
+  router.post(`${path}signupByEmail`, signupByEmail);
   router.post(
     `${path}login`,
     passport.authenticate("local", { session: true }),
-    login
+    login,
   );
 
   router.post(`${path}logout`, logout);
   router.post(`${path}loginByPhone`, loginByPhone);
   router.post(`${path}send-otp`, sendOtp);
   router.post(`${path}verify-otp`, verifyOtp);
+  router.post(`${path}send-email-otp`, sendEmailOtp);
+  router.post(`${path}verify-email-otp`, verifyEmailOtp);
   router.post(`${path}forgot-password`, forgotPasswordController);
   router.post(`${path}reset-password`, resetPasswordController);
   router.post(`${path}cotravellers`, isAuthenticated, newCoTraveller);
   router.patch(
     `${path}cotravellers/:coTravellerId`,
     isAuthenticated,
-    updateCoTraveller
+    updateCoTraveller,
   );
 
   /* *****DELETE******
@@ -62,7 +68,7 @@ const initializeRoutes = (router: Router) => {
   router.delete(
     `${path}cotravellers/:coTravellerId`,
     isAuthenticated,
-    deleteCoTraveller
+    deleteCoTraveller,
   );
 
   // Add other routes if needed

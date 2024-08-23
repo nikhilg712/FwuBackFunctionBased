@@ -18,14 +18,14 @@ dotenv.config();
 type DoneCallback = (
   err: Error | null,
   user?: IUser | false,
-  info?: { message: string }
+  info?: { message: string },
 ) => void;
 
 // Function to handle user authentication
 const authenticateUser: VerifyFunction = async (
   email: string,
   password: string,
-  done: DoneCallback
+  done: DoneCallback,
 ) => {
   try {
     const user = await User.findOne({ email }).exec();
@@ -60,7 +60,7 @@ const authenticateUser: VerifyFunction = async (
 
 const authenticateOtp = async (
   req: unknown, // Use unknown to handle the type mismatch
-  done: DoneCallback
+  done: DoneCallback,
 ) => {
   try {
     // Assert req as Request type
@@ -88,12 +88,10 @@ const authenticateOtp = async (
         phone: phone,
       }).save();
 
-      done(null, newUser);
-
       console.log(
-        `User not found for phone,So created new user with this : ${phone}`
+        `User not found for phone,So created new user with this : ${phone}`,
       );
-      return done(new AppError("User not found", 404), false);
+      return done(null, newUser);
     }
 
     return done(null, user);
@@ -147,16 +145,16 @@ passport.use(
       usernameField: "email",
       passwordField: "password",
     },
-    authenticateUser
-  )
+    authenticateUser,
+  ),
 );
 
 // Configure Passport Custom Strategy for phone and OTP
 passport.use(
   "otp",
   new CustomStrategy((req: unknown, done: DoneCallback) =>
-    authenticateOtp(req, done)
-  )
+    authenticateOtp(req, done),
+  ),
 );
 
 passport.use(
@@ -172,7 +170,7 @@ passport.use(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       profile: any,
       // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-      done: Function
+      done: Function,
     ) => {
       try {
         console.log("Access Token:", accessToken);
@@ -196,7 +194,7 @@ passport.use(
         console.log(err.message);
         throw new AppError(err, 400);
       }
-    }
-  )
+    },
+  ),
 );
 export default passport;

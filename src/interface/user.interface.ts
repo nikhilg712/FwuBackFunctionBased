@@ -107,3 +107,8 @@ export interface OtpRequestBody {
   phone: string;
   otp: string;
 }
+
+export interface OtpRequestEmailBody {
+  email: string;
+  otp: string;
+}

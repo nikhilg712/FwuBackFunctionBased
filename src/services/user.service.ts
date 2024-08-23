@@ -7,18 +7,16 @@ import {
   CoTravellerType,
 } from "../interface/user.interface";
 import bcrypt from "bcrypt";
-import { SMTPClient, Message } from "emailjs";
 import * as yup from "yup";
 import Address, { IAddress } from "../models/address";
 import OTP from "../models/phoneotp";
 import twilio from "twilio";
-import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { AppError } from "../utils/appError";
-import { catchAsync } from "@Utils/responseUtils";
 import dotenv from "dotenv";
 import { Client } from "@microsoft/microsoft-graph-client";
-import homeRouter from "@Routes/homeRoutes";
+import { constants } from "../constants/user.constants";
+import EmailOtp from "../models/emailotp";
 
 dotenv.config();
 // Twilio configuration
@@ -30,8 +28,6 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 
 const getAccessToken = async (): Promise<string> => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-
   const url = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;
 
   const response = await fetch(url, {
@@ -41,13 +37,15 @@ const getAccessToken = async (): Promise<string> => {
     },
     body: new URLSearchParams({
       grant_type: "client_credentials",
-      client_id: CLIENT_ID!,
-      client_secret: CLIENT_SECRET!,
+      client_id: CLIENT_ID || "",
+      client_secret: CLIENT_SECRET || "",
       scope: "https://graph.microsoft.com/.default",
     }),
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await response.json();
+
   return data.access_token;
 };
 
@@ -78,8 +76,7 @@ const signupSchema = yup.object({
   password: yup
     .string()
     .matches(/^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/, {
-      message:
-        "Password must be at least 8 characters long, with at least one uppercase letter, one number, and one special character.",
+      message: constants.PASSWORD_VALIDATION,
     })
     .notRequired(),
   gender: yup.string().oneOf(["Male", "Female", "Other"]).notRequired(),
@@ -160,7 +157,7 @@ const findUserByEmail = async (email: string): Promise<IUser | null> => {
  */
 const validatePassword = async (
   inputPassword: string,
-  storedPassword: string
+  storedPassword: string,
 ): Promise<boolean> => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
@@ -175,6 +172,34 @@ const findUserById = async (id: string): Promise<IUser | null> => {
   return User.findById(id).exec();
 };
 
+const sendEmailOtp = async (email: string): Promise<void> => {
+  try {
+    // Generate a random OTP (e.g., 6 digits)
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+    // Set OTP expiration time (e.g., 10 minutes)
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Save OTP to database
+
+    await EmailOtp.findOneAndUpdate(
+      { email },
+      { otp, expiresAt },
+      { upsert: true, new: true },
+    );
+    // Send OTP via SMS
+    await sendEmail(
+      email,
+      `<p>Otp for email verification ${otp}</p> `,
+      "Email Verification",
+    );
+
+    console.log("OTP sent successfully");
+  } catch (error) {
+    console.error("Error sending OTP:", error);
+    throw new AppError("Some problem with otp-sending", 400);
+  }
+};
 // Function to generate and send OTP
 const sendOtp = async (phone: string): Promise<void> => {
   try {
@@ -188,7 +213,7 @@ const sendOtp = async (phone: string): Promise<void> => {
     await OTP.findOneAndUpdate(
       { phone },
       { otp, expiresAt },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
 
     // Send OTP via SMS
@@ -205,10 +230,22 @@ const sendOtp = async (phone: string): Promise<void> => {
   }
 };
 
-// Function to verify OTP
-const verifyOtp = async (phone: string, otp: string): Promise<boolean> => {
+const verifyEmailOtp = async (email: string, otp: string): Promise<boolean> => {
   // Find OTP from database
-  const otpRecord = await OTP.findOne({ phone, otp }).exec();
+  const otpRecord = await EmailOtp.findOne({ email, otp }).exec();
+  if (!otpRecord) {
+    throw new AppError("Invalid OTP or OTP has expired", 400);
+  }
+
+  if (new Date() > otpRecord.expiresAt) {
+    throw new AppError("OTP has expired", 400);
+  }
+  return true;
+};
+// Function to verify OTP
+const verifyOtp = async (email: string, otp: string): Promise<boolean> => {
+  // Find OTP from database
+  const otpRecord = await EmailOtp.findOne({ email, otp }).exec();
   if (!otpRecord) {
     throw new AppError("Invalid OTP or OTP has expired", 400);
   }
@@ -221,7 +258,7 @@ const verifyOtp = async (phone: string, otp: string): Promise<boolean> => {
 
 const createCoTraveller = async (
   userId: string,
-  coTravelerData: object
+  coTravelerData: object,
 ): Promise<CoTravellerType> => {
   const coTraveler = new CoTraveller({
     userId,
@@ -239,14 +276,14 @@ const createCoTraveller = async (
  */
 const updateCoTraveller = async (
   id: string,
-  coTravelerData: CoTravellerType
+  coTravelerData: CoTravellerType,
 ): Promise<CoTravellerType | null> => {
   const updatedCoTraveler = await CoTraveller.findByIdAndUpdate(
     id,
     coTravelerData,
     {
       new: true,
-    }
+    },
   ).exec();
 
   if (!updatedCoTraveler) {
@@ -265,7 +302,7 @@ const updateCoTraveller = async (
  */
 
 const findCoTravellersByUserId = async (
-  userId: string
+  userId: string,
 ): Promise<CoTravellerType[]> => {
   return await CoTraveller.find({ userId }).exec();
 };
@@ -278,7 +315,7 @@ const findCoTravellersByUserId = async (
  */
 
 const findCoTravellerById = async (
-  id: string
+  id: string,
 ): Promise<CoTravellerType | null> => {
   return await CoTraveller.findById(id).exec();
 };
@@ -291,7 +328,7 @@ const findCoTravellerById = async (
  */
 
 const deleteCoTraveller = async (
-  id: string
+  id: string,
 ): Promise<CoTravellerType | null> => {
   return await CoTraveller.findByIdAndDelete(id).exec();
 };
@@ -364,7 +401,7 @@ const forgotPassword = async (email: string): Promise<void> => {
 const resetPassword = async (
   token: string,
   newPassword: string,
-  confirmPassword: string
+  confirmPassword: string,
 ) => {
   if (newPassword !== confirmPassword) {
     throw new AppError("Passwords do not match", 400);
@@ -390,7 +427,7 @@ const resetPassword = async (
     {
       $set: { password: hashedPassword },
       $unset: { resetPasswordToken: "", resetPasswordExpiry: "" },
-    }
+    },
   );
 };
 
@@ -412,4 +449,7 @@ export {
   findCoTravellerById,
   findCoTravellersByUserId,
   deleteCoTraveller,
+  sendEmail,
+  sendEmailOtp,
+  verifyEmailOtp,
 };

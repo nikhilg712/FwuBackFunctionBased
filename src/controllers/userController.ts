@@ -14,13 +14,16 @@ import {
   deleteCoTraveller as deleteCoTravellerRequest,
   resetPassword,
   sendOtp as sendOtpRequest,
+  sendEmailOtp as sendEmailOtpRequest,
   verifyOtp as verifyOtpRequest,
+  verifyEmailOtp as verifyEmailOtpRequest,
   createCoTraveller,
 } from "../services/user.service";
 import { constants } from "../constants/user.constants";
 import {
   CoTravellerResponseType,
   CoTravellerType,
+  OtpRequestEmailBody,
 } from "../interface/user.interface";
 import passport from "../middleware/passport";
 import {
@@ -40,9 +43,6 @@ import { IAddress } from "../models/address";
 /**
  * @function signup
  * @description Creates a new user.
- * @param {Request} request - The Express request object.
- * @param {Response} response - The Express response object.
- * @param {NextFunction} next - The Express next function.
  * @returns {Promise<SignupResponseType>} - A promise that resolves to the signup response object.
  */
 
@@ -146,9 +146,6 @@ const signup = catchAsync(
 /**
  * @function login
  * @description Verifies the credentials entered by the users and logs them in.
- * @param {Request} request - The Express request object.
- * @param {Response} response - The Express response object.
- * @param {NextFunction} next - The Express next function.
  * @returns {Promise<LoginResponseType>} - A promise that resolves to the login response object.
  */
 const login = catchAsync(
@@ -325,7 +322,24 @@ const loginByPhone = catchAsync(
     return sendResponse(response, 200, "Success", "", returnObj.data);
   },
 );
+const sendEmailOtp = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    const returnObj = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
 
+    const { email } = request.body;
+    await sendEmailOtpRequest(email);
+    sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
+  },
+);
 const sendOtp = catchAsync(
   async (
     request: Request,
@@ -344,8 +358,6 @@ const sendOtp = catchAsync(
     sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
   },
 );
-
-
 
 const forgotPasswordController = catchAsync(
   async (
@@ -392,6 +404,99 @@ const resetPasswordController = catchAsync(
       "Password has been reset successfully. Please login.",
       {},
     );
+  },
+);
+
+const verifyEmailOtp = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    const returnObj = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    const { email, otp }: OtpRequestEmailBody = request.body;
+    const verified: boolean = await verifyOtpRequest(email, otp);
+    if (!verified) {
+      return sendResponse(
+        response,
+        400,
+        "Failure",
+        "Otp not verified Successfully",
+        {},
+      );
+    }
+    return sendResponse(
+      response,
+      200,
+      "Verified Successfully",
+      "",
+      returnObj.data,
+    );
+  },
+);
+
+const signupByEmail = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    const returnObj = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    const { email, password } = request.body;
+    let hashedPassword: string | undefined;
+    if (email) {
+      const existingUser = await findUserByEmail(email);
+      if (existingUser) {
+        throw new AppError("Email already exists", 400);
+      }
+
+      // Encrypt password if provided
+      if (password) {
+        const saltRounds = 10;
+        const salt = await bcrypt.genSalt(saltRounds);
+        hashedPassword = await bcrypt.hash(password, salt);
+      }
+    }
+    const user = await new User({
+      email: email,
+      password: hashedPassword,
+    }).save();
+
+    return new Promise((resolve, reject) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      passport.authenticate("local", (err: unknown, user: any, info: any) => {
+        if (err) {
+          return reject(err);
+        }
+        if (!user) {
+          returnObj.data = info;
+          returnObj.message = constants.ERROR_MSG.LOGIN_FAILED;
+          returnObj.flag = false;
+          return response.status(401).json(returnObj); // Send response here
+        }
+
+        request.logIn(user, (err) => {
+          if (err) {
+            return reject(err);
+          }
+          returnObj.message = constants.SUCCESS_MSG.LOGGED_IN;
+          returnObj.data = user;
+          sendResponse(response, 200, "Success", "", returnObj.data); // Send response here
+        });
+      })(request, response, next);
+    });
   },
 );
 
@@ -635,6 +740,7 @@ const deleteCoTraveller = catchAsync(
 
     if (request.isAuthenticated()) {
       // Await the result from getCoTravellerById
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const coTraveller: any = await findCoTravellerById(
         request.params.coTravellerId,
       );
@@ -729,4 +835,7 @@ export {
   newCoTraveller,
   deleteCoTraveller,
   getCotravellers,
+  sendEmailOtp,
+  verifyEmailOtp,
+  signupByEmail,
 };

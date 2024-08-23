@@ -27,4 +27,6 @@ export const constants = {
   ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND",
   USER_TYPE_INDIVIDUAL: "Individual",
   USER_TYPE_AGENT: "AGENT",
+  PASSWORD_VALIDATION:
+    "Password must be at least 8 characters long, with at least one uppercase letter, one number, and one special character.",
 };
