@@ -29,7 +29,7 @@ const initializeRoutes = (router: Router) => {
 
   // // Define routes
   router.get(`${path}profile`, isAuthenticated, getProfile);
-  router.get("/auth/google", googleAuth);
+  router.get(`${path}auth/google`, googleAuth);
 
   // Callback route for Google to redirect to
   router.get(
