@@ -24,6 +24,7 @@ import {
   CoTravellerResponseType,
   CoTravellerType,
   OtpRequestEmailBody,
+  UserData,
 } from "../interface/user.interface";
 import passport from "../middleware/passport";
 import {
@@ -619,41 +620,50 @@ const googleAuthCallback = catchAsync(
     response: Response,
     next: NextFunction,
   ): Promise<void> => {
-    passport.authenticate(
-      "google",
-      async (err: Error | null, user: IUser | false, info: object) => {
-        if (err) {
-          console.error("Google authentication error:", err); // Log the error
-          return new AppError("Google Authentication Error", 400);
-        }
-        if (!user) {
-          console.log("Authentication failed:", info); // Log failure info
-          return sendResponse(
-            response,
-            401,
-            "Failure",
-            constants.ERROR_MSG.LOGIN_FAILED,
-            {},
-          );
-        }
+    // Use a promise to handle the passport.authenticate callback
+    await new Promise<void>((resolve, reject) => {
+      passport.authenticate(
+        "google",
+        { session: true }, // Ensure session management is enabled
+        async (err: Error | null, user: UserData, info: object) => {
+          user = (request.user as UserData) || user;
+          // if (err) {
+          //   console.error("Google authentication error:", err);
+          //   return reject(new AppError("Google Authentication Error", 400)); // Use reject to handle errors
+          // }
 
-        request.logIn(user, (err) => {
-          if (err) {
-            console.error("Error logging in user:", err); // Log login error
-            return next(err);
+          if (!user) {
+            console.log("Authentication failed:", info);
+            return sendResponse(
+              response,
+              401,
+              "Failure",
+              constants.ERROR_MSG.LOGIN_FAILED,
+              {},
+            );
           }
 
-          const data = {
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            // Other user details
-          };
+          request.logIn(user || "", (err) => {
+            if (err) {
+              console.error("Error logging in user:", err);
+              return reject(err); // Use reject to handle errors
+            }
 
-          return sendResponse(response, 200, "Success", "", data);
-        });
-      },
-    )(request, response, next);
+            const data = {
+              _id: user._id || "",
+              username: user.username || "",
+              email: user.email || "",
+              // Other user details
+            };
+
+            // Send success response and resolve the promise
+            sendResponse(response, 200, "Success", "", data);
+            resolve(); // Resolve the promise after sending the response
+          });
+        },
+      )(request, response, next); // Ensure to invoke passport.authenticate with request, response, and next
+      //response.redirect("https://flewwithus.com");
+    });
   },
 );
 

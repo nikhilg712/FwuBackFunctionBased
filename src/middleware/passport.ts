@@ -20,7 +20,6 @@ type DoneCallback = (
   user?: IUser | false,
   info?: { message: string },
 ) => void;
-
 // Function to handle user authentication
 const authenticateUser: VerifyFunction = async (
   email: string,
@@ -40,12 +39,7 @@ const authenticateUser: VerifyFunction = async (
       return done(new AppError("User password is not set", 400), false);
     }
 
-    // Ensure password is a string
-    if (typeof password !== "string") {
-      return done(new AppError("Password is required", 400), false);
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(password, user.password || "");
     if (!isMatch) {
       return done(null, false, {
         message: constants.ERROR_MSG.INCORRECT_PASSWORD,
@@ -73,9 +67,6 @@ const authenticateOtp = async (
       return done(new AppError("Phone and OTP must be strings", 400), false);
     }
 
-    // Debugging: Log the phone and OTP values
-    console.log(`Phone: ${phone}, OTP: ${otp}`);
-
     const otpRecord = await OTP.findOne({ phone, otp }).exec();
     if (!otpRecord) {
       return done(new AppError("Invalid OTP or OTP has expired", 400), false);
@@ -88,9 +79,6 @@ const authenticateOtp = async (
         phone: phone,
       }).save();
 
-      console.log(
-        `User not found for phone,So created new user with this : ${phone}`,
-      );
       return done(null, newUser);
     }
 
@@ -112,18 +100,6 @@ passport.deserializeUser(async (id: string, done) => {
     const user = await User.findById(id)
       .populate({
         path: "address", // Address field in User schema
-        populate: {
-          path: "country", // Country field in Address schema
-          model: "Country", // Ensure this matches the model name
-        },
-      })
-      .populate({
-        path: "passportIssuingCountry", // Passport issuing country field
-        model: "Country", // Ensure this matches the model name
-      })
-      .populate({
-        path: "nationality", // Nationality field
-        model: "Country", // Ensure this matches the model name
       })
       .exec();
     // If user exists, filter out sensitive properties
@@ -161,7 +137,7 @@ passport.use(
   new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "", // Your Client Secret
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       callbackURL: "http://localhost:8000/fwu/api/v1/user/auth/google/callback",
     },
     async (
@@ -173,28 +149,36 @@ passport.use(
       done: Function,
     ) => {
       try {
-        console.log("Access Token:", accessToken);
-        console.log("Refresh Token:", refreshToken);
-        console.log("Profile:", profile);
-
+        // User lookup and creation logic
         const existingUser = await User.findOne({ googleId: profile.id });
         if (existingUser) {
           return done(null, existingUser);
         }
 
+        const email = profile.emails?.[0]?.value || "";
+        if (!email) {
+          return done(new AppError("No email found in Google profile", 400));
+        }
+
         const newUser = await new User({
           googleId: profile.id,
           username: profile.displayName,
-          email: profile.emails[0].value,
+          email: email,
         }).save();
 
         done(null, newUser);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (err: any) {
-        console.log(err.message);
-        throw new AppError(err, 400);
+      } catch (err) {
+        console.error("Error during Google authentication:", err);
+        done(err, false);
       }
     },
   ),
 );
+
+// Modify passport to include the accessType=offline parameter
+// passport.authenticate("google", {
+//   scope: ["profile", "email"],
+//   accessType: "offline",
+// });
+
 export default passport;

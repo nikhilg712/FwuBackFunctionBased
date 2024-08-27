@@ -112,3 +112,12 @@ export interface OtpRequestEmailBody {
   email: string;
   otp: string;
 }
+
+export interface UserData {
+  googleId: string; // Google ID associated with the user
+  username: string; // User's display name
+  email: string; // User's email address
+  _id?: string; // Optional: MongoDB ObjectId if the user has already been created
+  refreshToken?: string; // Optional: Refresh token if applicable
+  // Add any other fields as necessary
+}
