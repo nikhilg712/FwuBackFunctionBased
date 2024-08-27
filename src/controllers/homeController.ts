@@ -5,6 +5,9 @@ import {
   FareQuoteResponseType,
   AuthTokenResponseType,
   FlightDataType,
+  Root,
+  FlightSearchResponseType,
+  FareRule,
 } from "../interface/home.interface";
 import { CountryModel } from "../models/country";
 import {
@@ -133,7 +136,7 @@ const searchFlights = catchAsync(
     response: Response,
     next: NextFunction,
   ): Promise<void> => {
-    const returnObj: FlightResponseType = {
+    const returnObj: FlightSearchResponseType = {
       data: [],
       flag: true,
       type: "",
@@ -141,7 +144,7 @@ const searchFlights = catchAsync(
     };
 
     // Call the searchFlights service method
-    const flights: any = await getFlights(request, response, next);
+    const flights: Root[] = await getFlights(request, response, next);
 
     if (!flights) {
       returnObj.flag = false;
@@ -155,7 +158,7 @@ const searchFlights = catchAsync(
       );
     }
 
-    returnObj.data = flights[0];
+    returnObj.data = flights;
     returnObj.message = "Flights fetched successfully";
 
     sendResponse(response, 200, "Success", returnObj.message, returnObj.data);
@@ -176,7 +179,7 @@ const fareRules = catchAsync(
     };
 
     // Call the getfareRule service method
-    const fareRule = await getFareRule(request, response, next);
+    const fareRule: FareRule[] = await getFareRule(request, response, next);
     returnObj.data = fareRule;
     returnObj.message = "Fare rule fetched successfully";
     if (!fareRule) {

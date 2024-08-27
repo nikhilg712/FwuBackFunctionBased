@@ -11,6 +11,16 @@ interface Sources {
 
 // Define constants with the SOURCES type
 export const constants = {
+  API_URLS: {
+    SEARCH_FLIGHTS:
+      "https://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/Search",
+    FARE_RULES:
+      "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/FareRule",
+    FARE_QUOTE:
+      "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/FareQuote",
+    AUTHENTICATE:
+      "https://api.tektravels.com/SharedServices/SharedData.svc/rest/Authenticate",
+  },
   ERROR_TYPE: {
     ERROR: "ERROR",
   },
@@ -18,6 +28,7 @@ export const constants = {
     NO_SUCH_AIRPORT: "No Such Airport Found",
     FARE_RULE_FETCH_FAILED: "Can't fetch fair rules",
     FARE_QUOTE_FETCH_FAILED: "Can't fetch fair quotes",
+    AUTHENTICATION_FAILED: "Authentication Failed",
   },
   ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND",
   LOCATION: "India",

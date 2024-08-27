@@ -3,18 +3,21 @@ import AuthToken from "../models/authToken";
 import {
   AirportListResponse,
   AuthTokenResponse,
+  FareRule,
   Flight,
   FlightDataType,
   FlightSearchResponse,
+  Root,
 } from "../interface/home.interface";
 import { AppError } from "../utils/appError";
+import { sendApiRequest } from "../utils/requestAPI";
 import { constants } from "../constants/home.constants";
 import { Airport } from "../models/airport";
 import axios from "axios";
 
 const getAirportList = async (
   Start: number,
-  End: number,
+  End: number
 ): Promise<AirportListResponse> => {
   try {
     const airports = await Airport.find()
@@ -98,10 +101,10 @@ const getAirportByCode = async (query: string): Promise<FlightDataType[]> => {
       }
 
       const aStartsWithQuery = a.AIRPORTNAME.toLowerCase().startsWith(
-        query.toLowerCase(),
+        query.toLowerCase()
       );
       const bStartsWithQuery = b.AIRPORTNAME.toLowerCase().startsWith(
-        query.toLowerCase(),
+        query.toLowerCase()
       );
       if (aStartsWithQuery && !bStartsWithQuery) {
         return -1;
@@ -122,8 +125,8 @@ const getAirportByCode = async (query: string): Promise<FlightDataType[]> => {
 const searchFlights = async (
   request: Request,
   response: Response,
-  next: NextFunction,
-): Promise<FlightSearchResponse> => {
+  next: NextFunction
+): Promise<Root[]> => {
   try {
     let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
     if (!AuthData) {
@@ -184,11 +187,11 @@ const searchFlights = async (
           FlightCabinClass,
           PreferredDepartureTime: await getDateTimeWithTimeOfDay(
             DepartureDate.toString(),
-            +TimeOfDay,
+            +TimeOfDay
           ),
           PreferredArrivalTime: await getDateTimeWithTimeOfDay(
             ArrivalDate.toString(),
-            +TimeOfDay,
+            +TimeOfDay
           ),
         },
       ],
@@ -205,76 +208,40 @@ const searchFlights = async (
         FlightCabinClass: ReturnFlightCabinClass,
         PreferredDepartureTime: await getDateTimeWithTimeOfDay(
           ReturnDepartureDate?.toString() || "",
-          +TimeOfDay,
+          +TimeOfDay
         ),
         PreferredArrivalTime: await getDateTimeWithTimeOfDay(
           ReturnArrivalDate?.toString() || "",
-          +TimeOfDay,
+          +TimeOfDay
         ),
       });
     }
 
     console.log("Request Body:", requestBody);
 
-    const options = {
-      method: "POST",
-      url: "https://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/Search",
-      headers: {
-        "content-type": "application/json",
-      },
-      data: requestBody,
-    };
+    let apiResponse: any; // Declare apiResponse outside the try block to ensure it is accessible later
 
-    let apiResponse;
     try {
-      apiResponse = await axios(options);
-    } catch (err: unknown) {
-      console.error("Error Response:", err || "");
-      throw new AppError(constants.ERROR_MSG.NO_SUCH_AIRPORT, 500);
-    }
-
-    if (apiResponse?.data?.Response?.TraceId) {
-      const traceId = apiResponse.data.Response.TraceId;
-      response.cookie("tekTravelsTraceId", traceId, {
-        maxAge: 15 * 60 * 60 * 1000,
-        httpOnly: true,
-        secure: process.env.BUILD_ENV !== "development",
+      apiResponse = await sendApiRequest({
+        url: constants.API_URLS.SEARCH_FLIGHTS,
+        data: requestBody,
       });
+      console.log(apiResponse);
+
+      // Set the TraceId cookie if it exists in the response
+      if (apiResponse?.Response?.TraceId) {
+        const traceId = apiResponse.Response.TraceId;
+        response.cookie("tekTravelsTraceId", traceId, {
+          maxAge: 15 * 60 * 60 * 1000, // 15 hours
+          httpOnly: true,
+          secure: process.env.BUILD_ENV !== "development",
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      throw new AppError(constants.SEARCH_FLIGHT_ERROR, 500);
     }
 
-    // if (finalResponse.length === 0) {
-    //   return { data: [] };
-    // }
-
-    // const lowestFareFlights: Record<string, any> = {};
-    // finalResponse[0].forEach((flight: any) => {
-    //   const flightNumber = flight?.Segments[0][0].Airline.FlightNumber;
-    //   const baseFare = flight?.Fare?.BaseFare;
-
-    //   if (
-    //     baseFare &&
-    //     flightNumber &&
-    //     (!lowestFareFlights[flightNumber] ||
-    //       baseFare < lowestFareFlights[flightNumber].Fare.BaseFare)
-    //   ) {
-    //     lowestFareFlights[flightNumber] = flight;
-    //   }
-    // });
-
-    // const lowestFareFlightsArray = Object.values(lowestFareFlights).map(
-    //   (flight: any): Flight => ({
-    //     id: flight?.Segments[0][0].Airline.FlightNumber,
-    //     from: flight?.Segments[0][0].Origin.AirportCode,
-    //     to: flight?.Segments[0][0].Destination.AirportCode,
-    //     departureTime: flight?.Segments[0][0].DepTime,
-    //     arrivalTime: flight?.Segments[0][0].ArrTime,
-    //     price: flight?.Fare?.BaseFare,
-    //   })
-    // );
-
-    // const data: FlightSearchResponse = { data: lowestFareFlightsArray };
-    // console.log(data.data.length);
-    // return data;
     const finalResponse = apiResponse?.data?.Response?.Results;
     const lowestFareFlights: Record<string, any> = {};
     finalResponse[0].forEach((flight: any) => {
@@ -295,21 +262,20 @@ const searchFlights = async (
       const flightNumber = flight?.Segments[0][0].Airline.FlightNumber;
       return lowestFareFlights[flightNumber] === flight;
     });
-    const data: any = [lowestFareFlightsArray];
-    console.log(data[0].length);
+    const data: Root[] = [lowestFareFlightsArray];
     return data;
   } catch (err: any) {
     console.error("Service Error:", err);
     next(new AppError(err.message, 500));
-    return { data: [] };
+    return [] as Root[];
   }
 };
 
 const getFareRule = async (
   request: Request,
   response: Response,
-  next: NextFunction,
-): Promise<any> => {
+  next: NextFunction
+): Promise<FareRule[]> => {
   try {
     const { ResultIndex } = request.query;
 
@@ -334,39 +300,33 @@ const getFareRule = async (
       ResultIndex: ResultIndex.toString(),
     };
 
-    const options = {
-      method: "POST",
-      url: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/FareRule",
-      headers: {
-        "content-type": "application/json",
-      },
-      data: requestBody,
-    };
-
     let apiResponse: any;
     try {
-      // Send request and get response
-      apiResponse = await axios(options);
+      apiResponse = await sendApiRequest({
+        url: constants.API_URLS.FARE_RULES,
+        data: requestBody,
+      });
     } catch (err: any) {
       console.error(
         "Error Response:",
-        err.response ? err.response.data : err.message,
+        err.response ? err.response.data : err.message
       );
       throw new AppError(constants.ERROR_MSG.FARE_RULE_FETCH_FAILED, 500);
     }
 
     // Return the Fare Rules from the API response
-    return apiResponse?.data?.Response?.FareRules;
+    const data: FareRule[] = apiResponse?.data?.Response?.FareRules;
+    return data;
   } catch (err: any) {
     next(new AppError(err.message, err.statusCode || 500));
-    return undefined;
+    return [] as FareRule[];
   }
 };
 
 const getFareQuote = async (
   request: Request,
   response: Response,
-  next: NextFunction,
+  next: NextFunction
 ): Promise<any> => {
   try {
     const { ResultIndex } = request.query;
@@ -392,24 +352,16 @@ const getFareQuote = async (
       ResultIndex: ResultIndex.toString(),
     };
 
-    const options = {
-      method: "POST",
-      url: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/FareQuote",
-      headers: {
-        "content-type": "application/json",
-      },
-      data: requestBody,
-    };
-
     let apiResponse: any;
     try {
-      // Send request and get response
-      apiResponse = await axios(options);
-      console.log("TBO API Response:", apiResponse?.data?.Response?.Results);
+      apiResponse = await sendApiRequest({
+        url: constants.API_URLS.FARE_QUOTE,
+        data: requestBody,
+      });
     } catch (err: any) {
       console.error(
         "Error Response:",
-        err.response ? err.response.data : err.message,
+        err.response ? err.response.data : err.message
       );
       throw new AppError(constants.ERROR_MSG.FARE_QUOTE_FETCH_FAILED, 500);
     }
@@ -424,7 +376,7 @@ const getFareQuote = async (
 const authenticate = async (
   request: Request,
   response: Response,
-  next: NextFunction,
+  next: NextFunction
 ): Promise<AuthTokenResponse> => {
   try {
     let headerip: string | undefined = request.headers[
@@ -440,30 +392,34 @@ const authenticate = async (
       EndUserIp: userIP,
     };
 
-    const options = {
-      method: "POST",
-      url: "https://api.tektravels.com/SharedServices/SharedData.svc/rest/Authenticate",
-      headers: {
-        "content-type": "application/JSON",
-      },
-      data: JSON.stringify(body),
-    };
+    let apiResponse: any;
+    try {
+      apiResponse = await sendApiRequest({
+        url: constants.API_URLS.AUTHENTICATE,
+        data: JSON.stringify(body),
+      });
+      console.log(apiResponse);
+    } catch (err: any) {
+      console.error(
+        "Error Response:",
+        err.response ? err.response.data : err.message
+      );
+      throw new AppError(constants.ERROR_MSG.AUTHENTICATION_FAILED, 500);
+    }
 
-    const result = await axios(options);
-
-    if (result?.data?.Error?.ErrorCode === 0) {
+    if (apiResponse?.data?.Error?.ErrorCode === 0) {
       const auth = new AuthToken({
         ipAddress: process.env.SERVER_IP_ADDRESS,
-        tokenId: result.data.TokenId,
-        MemberId: result.data.Member.MemberId,
-        AgencyId: result.data.Member.AgencyId,
+        tokenId: apiResponse.data.TokenId,
+        MemberId: apiResponse.data.Member.MemberId,
+        AgencyId: apiResponse.data.Member.AgencyId,
       });
 
       await auth.save();
-      return { data: result.data };
+      return { data: apiResponse.data };
+    } else {
+      throw new AppError("Failed", 400);
     }
-
-    throw new AppError("Authentication Failed", 400);
   } catch (error: any) {
     throw new AppError(error.message, 400);
   }
@@ -472,7 +428,7 @@ const authenticate = async (
 const getClientIp = async (
   request: Request,
   response: Response,
-  next: NextFunction,
+  next: NextFunction
 ): Promise<string> => {
   let headerIp: string | undefined = request.headers[
     "x-forwarded-for"
@@ -483,7 +439,7 @@ const getClientIp = async (
 };
 const getDateTimeWithTimeOfDay = async (
   date: string,
-  timeOfDay: number,
+  timeOfDay: number
 ): Promise<string> => {
   const timeMapping: { [key: number]: string } = {
     1: "00:00:00", // ALL
