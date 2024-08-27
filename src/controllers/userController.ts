@@ -3,9 +3,11 @@ import { catchAsync, sendResponse } from "../utils/responseUtils";
 import { UserResponseType } from "../interface/user.interface";
 import { emailOTPValidator, phoneNumberValidator } from "../utils/validator";
 import { findUserByEmail, sendOtp } from "../services/user.service";
-import { User } from "../models/users";
+import { IUser, User } from "../models/users";
 import { AppError } from "../utils/appError";
 import bcrypt from "bcrypt";
+import OTP from "../models/otp";
+import passport from "passport";
 
 // For signup with (email + password) or (phone)
 const signup = catchAsync(
@@ -20,14 +22,14 @@ const signup = catchAsync(
 
     // EMAIL + PASSWORD AUTH
     if (provider === "email") {
+      // Validation logic in this strategy
+
       // Validate query params
       await emailOTPValidator.validate({
         email: email,
         password: password,
       });
-
       // If we are here, it means validation was successful
-
       // Handle email
       const existingUser = await User.findOne({
         email: email,
@@ -39,19 +41,16 @@ const signup = catchAsync(
           400
         );
       }
-
       // Handle password
       const saltRounds = 10;
       const salt = await bcrypt.genSalt(saltRounds);
       const hashedPassword = await bcrypt.hash(password, salt);
-
       // Save user to db with isVerified:false in db as default value in model
       const user = new User({
         email: email,
         password: hashedPassword,
       });
       await user.save();
-
       // Send OTP to email for confirmation
       await sendOtp("email", email, null);
       sendResponse(
@@ -104,7 +103,200 @@ const signup = catchAsync(
   }
 );
 
-export { signup };
+// Verify OTP for (email + password) or (phone)
+const verifySignup = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const { provider, email, phone, otp } = request.body; // provider: email | phone
+
+    if (provider === "email") {
+      // Validation logic inside passport strategy
+      passport.authenticate(
+        "signup-email",
+        (err: unknown, user: any, info: any) => {
+          if (err) return next(err);
+          if (!user) return next(err); // Handle failed login
+
+          request.login(user, (err: unknown) => {
+            if (err) return next(err);
+            return sendResponse(
+              response,
+              200,
+              "Success",
+              "login success",
+              user
+            );
+          });
+        }
+      )(request, response, next);
+
+      // let otpRecord = await OTP.findOne({ email: email })
+      //   .sort({ createdAt: -1 })
+      //   .exec();
+      // console.log("OTP: ", otp);
+      // console.log("record: ", otpRecord);
+      // if (!otpRecord) {
+      //   throw new AppError("No OTP found for the provided user", 400);
+      // } else if (otpRecord.otp !== otp) {
+      //   throw new AppError("Invalid OTP, Please try again", 400);
+      // } else if (new Date().getTime() - otpRecord.expiresAt.getTime() > 0) {
+      //   throw new AppError("OTP Expired, Please try again", 400);
+      // } else {
+      //   let dbUser = await User.findOne({ email: email });
+      //   if (dbUser) {
+      //     dbUser.isVerified = true;
+      //     await dbUser.save();
+      //     // Passportjs login
+      //   } else {
+      //     throw new AppError("No user found", 400);
+      //   }
+      //}
+    } else if (provider === "phone") {
+      let otpRecord = await OTP.findOne({ phone: phone })
+        .sort({ createdAt: -1 })
+        .exec();
+
+      if (!otpRecord) {
+        throw new AppError("No OTP found for the provided user", 400);
+      } else if (otpRecord.otp !== otp) {
+        throw new AppError("Invalid OTP, Please try again", 400);
+      } else if (new Date().getTime() - otpRecord.expiresAt.getTime() > 0) {
+        throw new AppError("OTP Expired, Please try again", 400);
+      } else {
+        let user = await User.findOne({ phone: phone });
+        if (user) {
+          user.isVerified = true;
+          await user.save();
+
+          // Login via passportjs
+        } else {
+          throw new AppError("No user found", 400);
+        }
+      }
+    } else {
+      throw new AppError("Invalid OTP Provider", 400);
+    }
+  }
+);
+
+// Email Password | Phone login
+const login = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const { provider, email, password, phone } = request.body; // provider: email | phone
+    if (provider === "email") {
+      const user = await User.findOne({
+        email: email,
+        isVerified: true,
+      }).exec();
+
+      if (!user) {
+        throw new AppError("No user found", 400);
+      }
+
+      if (!password) {
+        throw new AppError("Please provide password", 400);
+      }
+
+      let isMatch = await bcrypt.compare(password, user.password!);
+      if (!isMatch) {
+        throw new AppError("Invalid password", 400);
+      }
+
+      // Passport login code
+    } else if (provider === "phone") {
+      const user = await User.findOne({
+        phone: phone,
+        isVerified: true,
+      }).exec();
+
+      if (!user) {
+        throw new AppError("No user with provided phone exists", 400);
+      }
+
+      await sendOtp("phone", null, phone);
+    } else {
+      throw new AppError("Invalid provider", 400);
+    }
+  }
+);
+
+// Login by phone otp confirmation
+const verifyLogin = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const { provider, email, phone, otp } = request.body; // provider: email | phone
+
+    let otpRecord = await OTP.findOne({ phone: phone })
+      .sort({ createdAt: -1 })
+      .exec();
+
+    if (!otpRecord) {
+      throw new AppError("No OTP found for the provided user", 400);
+    } else if (otpRecord.otp !== otp) {
+      throw new AppError("Invalid OTP, Please try again", 400);
+    } else if (new Date().getTime() - otpRecord.expiresAt.getTime() > 0) {
+      throw new AppError("OTP Expired, Please try again", 400);
+    } else {
+      // Passportjs auth code
+    }
+  }
+);
+
+// Get profile data
+const getUser = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: UserResponseType = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    console.log("Req: ", request);
+
+    let user = request.user;
+    console.log("Req user: ", user);
+
+    if (request.isAuthenticated()) {
+      sendResponse(response, 200, "Success", "hi", returnObj.data);
+    } else {
+      sendResponse(response, 200, "Failed", "hi", {});
+    }
+  }
+);
+
+// Logout
+const logout = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    request.logout((err) => {
+      if (err) {
+        return next(err); // Pass error to Express error handler
+      }
+      response.clearCookie("connect.sid", { path: "/" });
+      sendResponse(response, 200, "Success", "User LoggedOut Successfully", {});
+    });
+  }
+);
+
+export { signup, verifySignup, logout, getUser, login, verifyLogin };
 
 // OLD CODE
 // import { NextFunction, Request, Response } from "express";

@@ -1,5 +1,12 @@
 import { NextFunction, Request, Response, Router } from "express";
-import { signup } from "../controllers/userController";
+import {
+  signup,
+  verifySignup,
+  logout,
+  getUser,
+  login,
+  verifyLogin,
+} from "../controllers/userController";
 import passport from "passport";
 import { isAuthenticated } from "../middleware/authenticate";
 
@@ -9,6 +16,14 @@ const initializeRoutes = (router: Router) => {
   const path = "/";
 
   // // Define routes
+
+  router.post(`${path}signup`, signup);
+  router.post(`${path}verify-signup`, verifySignup);
+  router.post(`${path}login`, login);
+  router.post(`${path}verify-login`, verifyLogin);
+  router.post(`${path}logout`, logout);
+  router.get(`${path}get-user`, getUser);
+
   // router.get(`${path}profile`, isAuthenticated, getProfile);
   // router.get("/auth/google", googleAuth);
 
@@ -20,7 +35,7 @@ const initializeRoutes = (router: Router) => {
   // );
 
   // router.get(`${path}cotravellers`, isAuthenticated, getCotravellers);
-  router.post(`${path}signup`, signup);
+
   // router.post(`${path}signupByEmail`, signupByEmail);
   // router.post(
   //   `${path}login`,
