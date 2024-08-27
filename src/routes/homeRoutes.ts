@@ -1,12 +1,12 @@
 import express, { NextFunction, Request, Response, Router } from "express";
 import {
   getCountryList,
-  //   fareQuote,
-  //   fareRule,
-  //   getAirportsList,
-  //   getAirportsByCode,
-  //   authenticateToken,
-  //   searchFlights,
+  authenticateToken,
+  fareQuote,
+  fareRules,
+  searchFlights,
+  getAirportsByCode,
+  getAirportsList,
 } from "../controllers/homeController";
 import { isAuthenticated } from "../middleware/authenticate";
 
@@ -17,6 +17,16 @@ const initializeRoutes = (router: Router) => {
 
   // // Define routes
   router.get(`${path}country`, getCountryList);
+  router.get(`${path}airports`, getAirportsList);
+  router.get(`${path}airportbycode`, getAirportsByCode);
+  router.get(`${path}searchFlights`, searchFlights);
+  router.get(`${path}fareRule`, fareRules);
+  router.get(`${path}fareQuote`, fareQuote);
+
+  /* *****POST******
+        ==============================================*/
+
+  router.post(`${path}authenticate`, authenticateToken);
 };
 
 initializeRoutes(homeRouter);
