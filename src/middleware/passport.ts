@@ -175,10 +175,4 @@ passport.use(
   ),
 );
 
-// Modify passport to include the accessType=offline parameter
-// passport.authenticate("google", {
-//   scope: ["profile", "email"],
-//   accessType: "offline",
-// });
-
 export default passport;

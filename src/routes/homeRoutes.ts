@@ -18,7 +18,7 @@ const initializeRoutes = (router: Router) => {
   // // Define routes
   router.get(`${path}country`, getCountryList);
   router.get(`${path}airports`, getAirportsList);
-  router.get(`${path}airportbycode`, getAirportsByCode);
+  router.get(`${path}airportByCode`, getAirportsByCode);
   router.get(`${path}searchFlights`, searchFlights);
   router.get(`${path}fareRule`, fareRules);
   router.get(`${path}fareQuote`, fareQuote);

@@ -4,6 +4,7 @@ import {
   CountryList,
   FareQuoteResponseType,
   AuthTokenResponseType,
+  FlightDataType,
 } from "../interface/home.interface";
 import { CountryModel } from "../models/country";
 import {
@@ -25,7 +26,7 @@ const getCountryList = catchAsync(
   async (
     request: Request,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     const returnObj: CountryList = {
       data: [],
@@ -37,14 +38,14 @@ const getCountryList = catchAsync(
     returnObj.data = countries;
     returnObj.message = "Country List Fetched";
     sendResponse(response, 200, "Success", "CountryListFetched", countries);
-  }
+  },
 );
 
 const getAirportsList = catchAsync(
   async (
     request: Request,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     const returnObj: FlightResponseType = {
       data: [],
@@ -64,22 +65,20 @@ const getAirportsList = catchAsync(
     }
 
     const airportList = await getAirportList(start, end);
-    returnObj.data = airportList.data;
-    returnObj.message = "Airport list fetched successfully";
     if (!airportList) {
       returnObj.flag = false;
-      returnObj.message = constants.ERROR_MSG.NO_SUCH_AIRPORT;
       throw new AppError("Error fetching airport list:", 400);
     }
-
+    returnObj.data = airportList.data;
+    returnObj.message = "Airport list fetched successfully";
     sendResponse(
       response,
       returnObj.flag ? 200 : 400,
-      "Success",
+      returnObj.flag ? "Success" : "Failure",
       returnObj.message,
-      returnObj.data
+      returnObj.data,
     );
-  }
+  },
 );
 
 /**
@@ -91,7 +90,7 @@ const getAirportsByCode = catchAsync(
   async (
     request: Request,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     const returnObj: FlightResponseType = {
       data: [],
@@ -105,31 +104,34 @@ const getAirportsByCode = catchAsync(
     if (!airportCode) {
       returnObj.flag = false;
       returnObj.message = "Airport code is required.";
-    }
+    } else {
+      // This assumes that getAirportByCode handles errors properly
+      const airportList: FlightDataType[] = await getAirportByCode(airportCode);
 
-    const airportList = await getAirportByCode(airportCode);
-    returnObj.data = airportList.data;
-    returnObj.message = "Airport data fetched successfully";
-    if (!airportList || airportList.data.length === 0) {
-      returnObj.flag = false;
-      returnObj.message = constants.AIRPORT_BY_CODE_SEARCH_ERROR;
+      returnObj.data = airportList;
+      returnObj.message = "Airport data fetched successfully";
+
+      if (!airportList || airportList.length === 0) {
+        returnObj.flag = false;
+        returnObj.message = constants.AIRPORT_BY_CODE_SEARCH_ERROR;
+      }
     }
 
     sendResponse(
       response,
-      returnObj.flag ? 200 : 500,
-      "Success",
+      returnObj.flag ? 200 : 400,
+      returnObj.flag ? "Success" : "Failure",
       returnObj.message,
-      returnObj.data
+      returnObj.data,
     );
-  }
+  },
 );
 
 const searchFlights = catchAsync(
   async (
     request: Request,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     const returnObj: FlightResponseType = {
       data: [],
@@ -149,7 +151,7 @@ const searchFlights = catchAsync(
         404,
         "Failure",
         returnObj.message,
-        returnObj.data
+        returnObj.data,
       );
     }
 
@@ -157,14 +159,14 @@ const searchFlights = catchAsync(
     returnObj.message = "Flights fetched successfully";
 
     sendResponse(response, 200, "Success", returnObj.message, returnObj.data);
-  }
+  },
 );
 
 const fareRules = catchAsync(
   async (
     request: Request,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     const returnObj: FareRuleResponseType = {
       data: [],
@@ -185,7 +187,7 @@ const fareRules = catchAsync(
         404,
         "Failure",
         returnObj.message,
-        returnObj.data
+        returnObj.data,
       );
     }
 
@@ -194,16 +196,16 @@ const fareRules = catchAsync(
       returnObj.flag ? 200 : 500,
       "Success",
       "FareRuleFetched",
-      returnObj.data
+      returnObj.data,
     );
-  }
+  },
 );
 
 const fareQuote = catchAsync(
   async (
     request: Request,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     const returnObj: FareQuoteResponseType = {
       data: [],
@@ -224,7 +226,7 @@ const fareQuote = catchAsync(
         404,
         "Failure",
         returnObj.message,
-        returnObj.data
+        returnObj.data,
       );
     }
 
@@ -233,16 +235,16 @@ const fareQuote = catchAsync(
       returnObj.flag ? 200 : 500,
       "Success",
       "FareQuoteFetched",
-      returnObj.data
+      returnObj.data,
     );
-  }
+  },
 );
 
 const authenticateToken = catchAsync(
   async (
     request: Request,
     response: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     const returnObj: AuthTokenResponseType = {
       data: {},
@@ -264,9 +266,9 @@ const authenticateToken = catchAsync(
       returnObj.flag ? 200 : 500,
       "Success",
       returnObj.message,
-      returnObj.data
+      returnObj.data,
     );
-  }
+  },
 );
 
 export {

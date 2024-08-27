@@ -4,6 +4,7 @@ import {
   AirportListResponse,
   AuthTokenResponse,
   Flight,
+  FlightDataType,
   FlightSearchResponse,
 } from "../interface/home.interface";
 import { AppError } from "../utils/appError";
@@ -17,19 +18,17 @@ const getAirportList = async (
 ): Promise<AirportListResponse> => {
   try {
     const airports = await Airport.find()
-      .select("-_id")
+      .select("-_id -createdAt -updatedAt")
       .skip(Start)
       .limit(End)
       .exec();
     return { data: airports };
-  } catch (err: any) {
+  } catch (err) {
     throw new AppError(constants.ERROR_MSG.NO_SUCH_AIRPORT, 500);
   }
 };
 
-const getAirportByCode = async (
-  query: string,
-): Promise<AirportListResponse> => {
+const getAirportByCode = async (query: string): Promise<FlightDataType[]> => {
   try {
     const regex = new RegExp(query, "i");
     const airports = await Airport.find({
@@ -41,10 +40,22 @@ const getAirportByCode = async (
         { AIRPORTNAME: { $regex: regex } },
       ],
     })
+      .select("-_id -createdAt -updatedAt")
       .limit(10)
       .exec();
 
-    airports.sort((a, b) => {
+    // Explicitly map the query results to match FlightDataType
+    const mappedAirports: FlightDataType[] = airports.map((airport) => ({
+      CITYNAME: airport.CITYNAME,
+      CITYCODE: airport.CITYCODE,
+      COUNTRYCODE: airport.COUNTRYCODE,
+      COUNTRYNAME: airport.COUNTRYNAME,
+      AIRPORTCODE: airport.AIRPORTCODE,
+      AIRPORTNAME: airport.AIRPORTNAME,
+    }));
+
+    // Sorting logic remains the same
+    mappedAirports.sort((a, b) => {
       const aAirportCodeMatch =
         a.AIRPORTCODE.toLowerCase() === query.toLowerCase();
       const bAirportCodeMatch =
@@ -101,10 +112,9 @@ const getAirportByCode = async (
 
       return 0;
     });
-    return {
-      data: airports,
-    };
-  } catch (err: any) {
+
+    return mappedAirports;
+  } catch (err) {
     throw new AppError(constants.ERROR_MSG.NO_SUCH_AIRPORT, 500);
   }
 };
@@ -215,11 +225,11 @@ const searchFlights = async (
       data: requestBody,
     };
 
-    let apiResponse: any;
+    let apiResponse;
     try {
       apiResponse = await axios(options);
-    } catch (err: any) {
-      console.error("Error Response:", err.response || err.message);
+    } catch (err: unknown) {
+      console.error("Error Response:", err || "");
       throw new AppError(constants.ERROR_MSG.NO_SUCH_AIRPORT, 500);
     }
 
@@ -232,7 +242,6 @@ const searchFlights = async (
       });
     }
 
-    // const finalResponse = apiResponse?.data?.Response?.Results || [];
     // if (finalResponse.length === 0) {
     //   return { data: [] };
     // }

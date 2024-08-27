@@ -24,9 +24,16 @@ export interface Flight {
 export interface FlightSearchResponse {
   data: Flight[];
 }
-
+export interface FlightDataType {
+  CITYNAME: string;
+  CITYCODE: string;
+  COUNTRYCODE: string;
+  COUNTRYNAME: string;
+  AIRPORTCODE: string;
+  AIRPORTNAME: string;
+}
 export interface FlightResponseType {
-  data: Array<object>;
+  data: Array<FlightDataType>;
   flag: boolean;
   type: string;
   message: string;
