@@ -40,13 +40,11 @@ export interface FlightResponseType {
 }
 
 export interface FlightSearchResponseType {
-  data: Array<Root>;
+  data: Root[];
   flag: boolean;
   type: string;
   message: string;
 }
-
-
 
 export interface AuthTokenResponseType {
   data: object;
@@ -128,7 +126,6 @@ export interface Country {
   code: string;
   dial_code: string;
 }
-
 
 export interface FareClassificationDetails {
   Color: string;
@@ -239,4 +236,53 @@ export interface Root {
   MiniFareRules: MiniFareRule[][];
   ValidatingAirline: string;
   FareClassification: FareClassificationDetails;
+}
+//////////////////SSR Interface////////////////////
+export interface MealOption {
+  Code: string;
+  Description: string;
+}
+
+export interface Seat {
+  AirlineCode: string;
+  FlightNumber: string;
+  CraftType: string;
+  Origin: string;
+  Destination: string;
+  AvailablityType: number;
+  Description: number | string; // Adjust based on actual usage
+  Code: string;
+  RowNo: string;
+  SeatNo: string | null;
+  SeatType: number;
+  SeatWayType: number;
+  Compartment: number;
+  Deck: number;
+  Currency: string;
+  Price: number;
+  Text: string;
+}
+
+export interface RowSeat {
+  Seats: Seat[];
+}
+
+export interface SegmentSeat {
+  RowSeats: RowSeat[];
+}
+
+export interface SeatDynamic {
+  SegmentSeat: SegmentSeat[];
+}
+
+export interface SSRFlightData {
+  Meal: MealOption[];
+  SeatDynamic: SeatDynamic[];
+}
+
+export interface SSRResponseType {
+  data: SSRFlightData;
+  flag: boolean;
+  type: string;
+  message: string;
 }

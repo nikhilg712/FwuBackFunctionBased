@@ -28,7 +28,7 @@ export async function sendApiRequest({
   } catch (err: any) {
     console.error(
       "Error Response:",
-      err.response ? err.response.data : err.message
+      err.response ? err.response.data : err.message,
     );
     throw err; // Re-throw the error to be handled by the caller
   }

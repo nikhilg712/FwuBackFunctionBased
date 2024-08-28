@@ -7,6 +7,7 @@ import {
   searchFlights,
   getAirportsByCode,
   getAirportsList,
+  ssr,
 } from "../controllers/homeController";
 import { isAuthenticated } from "../middleware/authenticate";
 
@@ -22,6 +23,7 @@ const initializeRoutes = (router: Router) => {
   router.get(`${path}searchFlights`, searchFlights);
   router.get(`${path}fareRule`, fareRules);
   router.get(`${path}fareQuote`, fareQuote);
+  router.get(`${path}ssr`, ssr);
 
   /* *****POST******
         ==============================================*/

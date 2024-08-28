@@ -8,6 +8,7 @@ import {
   FlightDataType,
   FlightSearchResponse,
   Root,
+  SSRFlightData,
 } from "../interface/home.interface";
 import { AppError } from "../utils/appError";
 import { sendApiRequest } from "../utils/requestAPI";
@@ -229,8 +230,8 @@ const searchFlights = async (
       console.log(apiResponse);
 
       // Set the TraceId cookie if it exists in the response
-      if (apiResponse?.Response?.TraceId) {
-        const traceId = apiResponse.Response.TraceId;
+      if (apiResponse?.data?.Response?.TraceId) {
+        const traceId = apiResponse.data.Response.TraceId;
         response.cookie("tekTravelsTraceId", traceId, {
           maxAge: 15 * 60 * 60 * 1000, // 15 hours
           httpOnly: true,
@@ -358,6 +359,7 @@ const getFareQuote = async (
         url: constants.API_URLS.FARE_QUOTE,
         data: requestBody,
       });
+      console.log(apiResponse);
     } catch (err: any) {
       console.error(
         "Error Response:",
@@ -370,6 +372,66 @@ const getFareQuote = async (
   } catch (err: any) {
     next(new AppError(err.message, err.statusCode || 500));
     return undefined;
+  }
+};
+
+const getSSR = async (
+  request: Request,
+  response: Response,
+  next: NextFunction
+): Promise<SSRFlightData> => {
+  try {
+    const { ResultIndex } = request.query;
+
+    if (!ResultIndex) {
+      throw new AppError("ResultIndex is required", 400);
+    }
+
+    let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
+    if (!AuthData) {
+      await authenticate(request, response, next);
+      AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
+    }
+
+    if (!AuthData) {
+      throw new AppError("Authentication failed. No token found.", 500);
+    }
+
+    const requestBody = {
+      EndUserIp: await getClientIp(request, response, next),
+      TokenId: AuthData.tokenId,
+      TraceId: request.cookies.tekTravelsTraceId,
+      ResultIndex: ResultIndex.toString(),
+    };
+
+    const options = {
+      method: "POST",
+      url: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/SSR",
+      headers: {
+        "content-type": "application/json",
+      },
+      data: requestBody,
+    };
+
+    let apiResponse: any;
+    try {
+      // Send request and get response
+      apiResponse = await axios(options);
+      console.log("TBO API Response:", apiResponse?.data?.Response?.Results);
+    } catch (err: any) {
+      console.error(
+        "Error Response:",
+        err.response ? err.response.data : err.message
+      );
+      throw new AppError(constants.ERROR_MSG.FARE_QUOTE_FETCH_FAILED, 500);
+    }
+    const result: SSRFlightData = {
+      Meal: apiResponse?.data?.Response.Meal,
+      SeatDynamic: apiResponse?.data?.Response.SeatDynamic,
+    };
+    return result;
+  } catch (err: any) {
+    throw new AppError(err.message, err.statusCode || 500);
   }
 };
 
@@ -464,9 +526,8 @@ export {
   getAirportList,
   getClientIp,
   getFareQuote,
-  getSourceParameter,
   searchFlights,
-  getDateTimeWithTimeOfDay,
   authenticate,
   getFareRule,
+  getSSR,
 };
