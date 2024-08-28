@@ -1,7 +1,11 @@
 import { NextFunction, Request, Response } from "express";
 import { catchAsync, sendResponse } from "../utils/responseUtils";
 import { UserResponseType } from "../interface/user.interface";
-import { emailOTPValidator, phoneNumberValidator } from "../utils/validator";
+import {
+  emailOTPValidator,
+  phoneNumberValidator,
+  profileUpdateValidator,
+} from "../utils/validator";
 import { findUserByEmail, sendOtp } from "../services/user.service";
 import { IUser, User } from "../models/users";
 import { AppError } from "../utils/appError";
@@ -323,6 +327,41 @@ const logout = catchAsync(
   }
 );
 
+// Update user
+const updateUser = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const { _id, username, dateOfBirth, gender } = request.body;
+
+    await profileUpdateValidator.validate({
+      username,
+      dateOfBirth,
+      gender,
+    });
+
+    const user = await User.findByIdAndUpdate(
+      _id,
+      {
+        username,
+        dateOfBirth,
+        gender,
+      },
+      { new: true }
+    );
+
+    sendResponse(
+      response,
+      200,
+      "Success",
+      "Profile updated successfully",
+      user
+    );
+  }
+);
+
 export {
   signup,
   verifySignup,
@@ -332,6 +371,7 @@ export {
   verifyLogin,
   googleSignIn,
   googleSignInCallback,
+  updateUser
 };
 
 // OLD CODE
