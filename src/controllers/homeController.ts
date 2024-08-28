@@ -10,6 +10,7 @@ import {
   FareRule,
   SSRFlightData,
   SSRResponseType,
+  SelectedFareQuote,
 } from "../interface/home.interface";
 import { CountryModel } from "../models/country";
 import {
@@ -147,7 +148,11 @@ const searchFlights = catchAsync(
     };
 
     // Call the searchFlights service method
-    const flights: Root[] = await getFlights(request, response, next);
+    const flights: SelectedFareQuote[] = await getFlights(
+      request,
+      response,
+      next
+    );
 
     if (!flights) {
       returnObj.flag = false;

@@ -8,6 +8,7 @@ import {
   FlightDataType,
   FlightSearchResponse,
   Root,
+  SelectedFareQuote,
   SSRFlightData,
 } from "../interface/home.interface";
 import { AppError } from "../utils/appError";
@@ -264,7 +265,41 @@ const searchFlights = async (
       return lowestFareFlights[flightNumber] === flight;
     });
     const data: Root[] = [lowestFareFlightsArray];
-    return data;
+    const mappedFlightInfo: SelectedFareQuote[] = data.map((flight) => ({
+      FirstNameFormat: flight.FirstNameFormat,
+      IsBookableIfSeatNotAvailable: flight.IsBookableIfSeatNotAvailable,
+      IsHoldAllowedWithSSR: flight.IsHoldAllowedWithSSR,
+      IsUpsellAllowed: flight.IsUpsellAllowed,
+      LastNameFormat: flight.LastNameFormat,
+      ResultIndex: flight.ResultIndex,
+      Source: flight.Source,
+      IsLCC: flight.IsLCC,
+      IsRefundable: flight.IsRefundable,
+      IsPanRequiredAtBook: flight.IsPanRequiredAtBook,
+      IsPanRequiredAtTicket: flight.IsPanRequiredAtTicket,
+      IsPassportRequiredAtBook: flight.IsPassportRequiredAtBook,
+      IsPassportRequiredAtTicket: flight.IsPassportRequiredAtTicket,
+      GSTAllowed: flight.GSTAllowed,
+      IsCouponAppilcable: flight.IsCouponAppilcable,
+      IsGSTMandatory: flight.IsGSTMandatory,
+      AirlineRemark: flight.AirlineRemark,
+      IsPassportFullDetailRequiredAtBook:
+        flight.IsPassportFullDetailRequiredAtBook,
+      ResultFareType: flight.ResultFareType,
+      Fare: flight.Fare,
+      FareBreakdown: flight.FareBreakdown,
+      Segments: flight.Segments,
+      LastTicketDate: flight.LastTicketDate,
+      TicketAdvisory: flight.TicketAdvisory,
+      FareRules: flight.FareRules,
+      PenaltyCharges: flight.PenaltyCharges,
+      AirlineCode: flight.AirlineCode,
+      MiniFareRules: flight.MiniFareRules,
+      ValidatingAirline: flight.ValidatingAirline,
+      FareClassification: flight.FareClassification,
+    }));
+
+    return mappedFlightInfo;
   } catch (err: any) {
     console.error("Service Error:", err);
     next(new AppError(err.message, 500));
