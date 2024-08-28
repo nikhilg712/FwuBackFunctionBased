@@ -1,9 +1,12 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { User } from "../models/users";
 import OTP from "../models/otp";
 import { AppError } from "../utils/appError";
+import bcrypt from "bcrypt";
 
+// SIGNUP EMAIL
 passport.use(
   "signup-email",
   new LocalStrategy(
@@ -46,6 +49,182 @@ passport.use(
         }
       } catch (error) {
         return done(error);
+      }
+    }
+  )
+);
+
+// SIGNUP PHONE
+passport.use(
+  "signup-phone",
+  new LocalStrategy(
+    {
+      usernameField: "phone",
+      passwordField: "otp",
+    },
+    async (phone: string, otp: string, done) => {
+      try {
+        let otpRecord = await OTP.findOne({ phone: phone })
+          .sort({ createdAt: -1 })
+          .exec();
+
+        if (!otpRecord) {
+          return done(null, false, {
+            message: "No OTP found for the provided user",
+          });
+        } else if (otpRecord.otp !== otp) {
+          return done(null, false, {
+            message: "Invalid OTP, Please try again",
+          });
+        } else if (new Date().getTime() - otpRecord.expiresAt.getTime() > 0) {
+          return done(null, false, {
+            message: "OTP Expired, Please try again",
+          });
+        } else {
+          let user = await User.findOne({ phone: phone });
+          if (user) {
+            user.isVerified = true;
+            await user.save();
+
+            // Login via passportjs
+            return done(null, user);
+          } else {
+            return done(null, false, {
+              message: "No user found",
+            });
+          }
+        }
+      } catch (error) {
+        return done(error);
+      }
+    }
+  )
+);
+
+// LOGIN EMAIL
+passport.use(
+  "login-email",
+  new LocalStrategy(
+    {
+      usernameField: "email",
+      passwordField: "password",
+    },
+    async (email: string, password: string, done) => {
+      try {
+        const user = await User.findOne({
+          email: email,
+          isVerified: true,
+        }).exec();
+
+        if (!user) {
+          return done(null, false, {
+            message: "No user found",
+          });
+        }
+
+        if (!password) {
+          return done(null, false, {
+            message: "Please provide password",
+          });
+        }
+
+        let isMatch = await bcrypt.compare(password, user.password!);
+        if (!isMatch) {
+          return done(null, false, {
+            message: "Incorrect password",
+          });
+        } else {
+          done(null, user);
+        }
+      } catch (error) {
+        return done(error);
+      }
+    }
+  )
+);
+
+// LOGIN PHONE // TODO: Optimize
+passport.use(
+  "login-phone",
+  new LocalStrategy(
+    {
+      usernameField: "phone",
+      passwordField: "otp",
+    },
+    async (phone: string, otp: string, done) => {
+      try {
+        let otpRecord = await OTP.findOne({ phone: phone })
+          .sort({ createdAt: -1 })
+          .exec();
+
+        if (!otpRecord) {
+          return done(null, false, {
+            message: "No OTP found for the provided user",
+          });
+        } else if (otpRecord.otp !== otp) {
+          return done(null, false, {
+            message: "Invalid OTP, Please try again",
+          });
+        } else if (new Date().getTime() - otpRecord.expiresAt.getTime() > 0) {
+          return done(null, false, {
+            message: "OTP Expired, Please try again",
+          });
+        } else {
+          let user = await User.findOne({ phone: phone });
+          if (user) {
+            // Login via passportjs
+            return done(null, user);
+          } else {
+            return done(null, false, {
+              message: "No user found",
+            });
+          }
+        }
+      } catch (error) {
+        return done(error);
+      }
+    }
+  )
+);
+
+// GOOGLE SIGNUP
+passport.use(
+  "google",
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID!!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!!,
+      callbackURL: "http://localhost:8000/fwu/api/v1/user/auth/google/callback",
+    },
+    async (
+      accessToken: string,
+      refreshToken: string,
+      profile: any,
+      done: Function
+    ) => {
+      try {
+        console.log("Hi");
+        console.log("Access Token:", accessToken);
+        console.log("Refresh Token:", refreshToken);
+        console.log("Profile:", profile);
+
+        const existingUser = await User.findOne({ googleId: profile.id });
+        if (existingUser) {
+          return done(null, existingUser);
+        }
+
+        const newUser = await new User({
+          googleId: profile.id,
+          username: profile.displayName,
+          email: profile.emails[0].value,
+          isVerified: true,
+        }).save();
+
+        // Send user to callback function
+        done(null, newUser);
+      } catch (err: any) {
+        console.log(err.message);
+        throw new AppError(err, 400);
       }
     }
   )

@@ -6,6 +6,8 @@ import {
   getUser,
   login,
   verifyLogin,
+  googleSignIn,
+  googleSignInCallback,
 } from "../controllers/userController";
 import passport from "passport";
 import { isAuthenticated } from "../middleware/authenticate";
@@ -23,6 +25,8 @@ const initializeRoutes = (router: Router) => {
   router.post(`${path}verify-login`, verifyLogin);
   router.post(`${path}logout`, logout);
   router.get(`${path}get-user`, getUser);
+  router.get(`${path}google-signin`, googleSignIn);
+  router.get(`${path}auth/google/callback`, googleSignInCallback);
 
   // router.get(`${path}profile`, isAuthenticated, getProfile);
   // router.get("/auth/google", googleAuth);

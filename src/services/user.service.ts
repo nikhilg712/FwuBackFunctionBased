@@ -202,7 +202,7 @@ const sendOtp = async (
   email: string | null,
   phone: string | null
 ): Promise<void> => {
-  await OTP.deleteMany({})
+  //await OTP.deleteMany({})
   if (provider === "email") {
     const otpValue = Math.floor(1000 + Math.random() * 9000).toString(); // Generate Random 6 digit number
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); //  Set OTP expiration time (e.g., 10 minutes)
