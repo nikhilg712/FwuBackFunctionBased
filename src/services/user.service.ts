@@ -67,6 +67,10 @@ const addressSchema = yup.object().shape({
   country: yup.string().notRequired(),
 });
 
+const passwordSchema = yup.string().required("Password is required");
+const userSchema = yup.object().shape({
+  password: yup.string().required("User password is not set"),
+});
 // Define schema for an array of addresses
 const addressArraySchema = yup.array().of(addressSchema).notRequired();
 

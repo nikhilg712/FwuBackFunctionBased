@@ -213,6 +213,11 @@ passport.use(
           return done(null, existingUser);
         }
 
+        const email = profile.emails?.[0]?.value || "";
+        if (!email) {
+          return done(new AppError("No email found in Google profile", 400));
+        }
+
         const newUser = await new User({
           googleId: profile.id,
           username: profile.displayName,

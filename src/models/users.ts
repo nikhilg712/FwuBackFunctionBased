@@ -19,9 +19,9 @@ interface IUser extends Document {
   dateOfBirth?: Date;
   passportNo?: string;
   passportExpiry?: Date;
-  passportIssuingCountry?: ICountry["_id"];
+  passportIssuingCountry?: string;
   panNo?: string;
-  nationality?: ICountry["_id"];
+  nationality?: string;
   address?: IAddress["_id"];
   phone: string;
   userType?: "Admin" | "Client";
@@ -50,15 +50,9 @@ const userSchema: Schema<IUser> = new Schema(
     dateOfBirth: { type: Date },
     passportNo: { type: String },
     passportExpiry: { type: Date },
-    passportIssuingCountry: {
-      type: Schema.Types.ObjectId,
-      ref: "Country",
-    },
+    passportIssuingCountry: { type: String },
     panNo: { type: String },
-    nationality: {
-      type: Schema.Types.ObjectId,
-      ref: "Country",
-    },
+    nationality: { type: String },
     address: [{ type: Schema.Types.ObjectId, ref: "Address" }],
     phone: { type: String },
     userType: { type: String, enum: ["Admin", "Client"], default: "Client" },
