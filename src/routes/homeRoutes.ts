@@ -9,6 +9,7 @@ import {
   getAirportsList,
   ssr,
 } from "../controllers/homeController";
+import { createPayment, paymentStatus } from "../services/home.service";
 import { isAuthenticated } from "../middleware/authenticate";
 
 const homeRouter = Router();
@@ -24,6 +25,8 @@ const initializeRoutes = (router: Router) => {
   router.get(`${path}fareRule`, fareRules);
   router.get(`${path}fareQuote`, fareQuote);
   router.get(`${path}ssr`, ssr);
+  router.get(`${path}pay`, createPayment);
+  router.get(`${path}payment/validate/:merchantTransactionId`, paymentStatus);
 
   /* *****POST******
         ==============================================*/
