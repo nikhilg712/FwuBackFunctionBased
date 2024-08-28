@@ -224,6 +224,13 @@ const fareQuote = catchAsync(
     if (!fareQuote) {
       returnObj.flag = false;
       returnObj.message = constants.FARE_QUOTE_ERROR;
+      return sendResponse(
+        response,
+        404,
+        "Failure",
+        returnObj.message,
+        returnObj.data
+      );
     }
 
     sendResponse(
@@ -267,6 +274,8 @@ const ssr = catchAsync(
     );
   }
 );
+
+
 
 const authenticateToken = catchAsync(
   async (
