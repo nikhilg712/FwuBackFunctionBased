@@ -21,6 +21,7 @@ import {
   getFareRule,
   getFareQuote,
   getSSR,
+  getBooking,
 } from "../services/home.service";
 import {
   FlightResponseType,
@@ -451,12 +452,12 @@ const booking = catchAsync(
     };
 
     // Call the getfareQuote service method
-    const booking: any = await getSSR(request, response, next);
+    const booking: any = await getBooking(request, response, next);
     returnObj.data = ssr;
-    returnObj.message = "SSR fetched successfully";
-    if (!ssr) {
+    returnObj.message = "Booking fetched successfully";
+    if (!booking) {
       returnObj.flag = false;
-      returnObj.message = constants.FARE_QUOTE_ERROR;
+      returnObj.message = constants.BOOKING_FAILED_FOR_NONLCC;
     }
 
     sendResponse(
