@@ -11,12 +11,12 @@ import {
   SelectedFareQuote,
   SSRFlightData,
 } from "../interface/home.interface";
-import btoa from "btoa";
 import { AppError } from "../utils/appError";
 import { sendResponse } from "../utils/responseUtils";
 import { sendApiRequest } from "../utils/requestAPI";
 import { constants } from "../constants/home.constants";
 import { Airport } from "../models/airport";
+import {Booking} from "../models/Booking"
 import axios from "axios";
 import crypto from "crypto";
 import { Buffer } from "buffer";
@@ -569,6 +569,7 @@ const getBooking = async (
     if (!ResultIndex) {
       throw new AppError("ResultIndex is required", 400);
     }
+
     let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
     if (!AuthData) {
       await authenticate(request, response, next);
@@ -578,6 +579,7 @@ const getBooking = async (
     if (!AuthData) {
       throw new AppError("Authentication failed. No token found.", 500);
     }
+
     const passenger = request.body.Passengers;
     const requestBody = {
       EndUserIp: await getClientIp(request, response, next),
@@ -594,7 +596,6 @@ const getBooking = async (
         data: requestBody,
       });
       console.log(apiResponse);
-      return apiResponse.data.Response.Response;
     } catch (err: any) {
       console.error(
         "Error Response:",
@@ -602,10 +603,27 @@ const getBooking = async (
       );
       throw new AppError(constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
     }
+
+    
+
+    const user = request.user as { id: string };
+    const userId = user.id;
+    console.log(userId);
+
+    if (apiResponse?.data?.Error?.ErrorCode === 0) {
+      const booking = new Booking({
+        userId,
+        ...apiResponse.data,
+      });
+
+      await booking.save();
+      return { data: apiResponse.data };
+    }
   } catch (err: any) {
     throw new AppError(err.message, err.statusCode || 500);
   }
 };
+
 
 export {
   getAirportByCode,

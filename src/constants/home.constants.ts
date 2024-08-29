@@ -9,20 +9,20 @@ interface Sources {
   [key: string]: string[];
 }
 
+const MAIN_URL =
+  "https://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/";
+
 // Define constants with the SOURCES type
 export const constants = {
   API_URLS: {
-    SEARCH_FLIGHTS:
-      "https://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/Search",
-    FARE_RULES:
-      "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/FareRule",
-    FARE_QUOTE:
-      "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/FareQuote",
+    MAIN_URL,
+    SEARCH_FLIGHTS: `${MAIN_URL}Search`,
+    FARE_RULES: `${MAIN_URL}FareRule`,
+    FARE_QUOTE: `${MAIN_URL}FareQuote`,
+    SSR: `${MAIN_URL}SSR`,
     AUTHENTICATE:
       "https://api.tektravels.com/SharedServices/SharedData.svc/rest/Authenticate",
-    SSR: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/SSR",
-    BOOKING:
-      "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/Book",
+    BOOKING:`${MAIN_URL}Book`,
   },
   ERROR_TYPE: {
     ERROR: "ERROR",
@@ -34,6 +34,7 @@ export const constants = {
     AUTHENTICATION_FAILED: "Authentication Failed",
     SSR_FETCH_FAILED: "SSR Ftech Failed",
   },
+  TRANSACTIONID_NOT_FOUND: "no transaction id found",
   ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND",
   LOCATION: "India",
   FARE_RULE_ERROR: "An error occurred while fetching the fareRule.",

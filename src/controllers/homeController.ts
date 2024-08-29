@@ -172,7 +172,7 @@ const searchFlights = catchAsync(
       returnObj.flag ? 200 : 400,
       returnObj.flag ? "Success" : "Failure",
       returnObj.message,
-      returnObj.data[0]
+      returnObj.data
     );
   }
 );
@@ -351,61 +351,76 @@ const createPayment = catchAsync(
   }
 );
 
-const paymentStatus = async (request: Request, response: Response) => {
-  const { merchantTransactionId } = request.params;
+const paymentStatus = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const { merchantTransactionId } = request.params;
 
-  if (!merchantTransactionId) {
-    console.log("no transaction id found");
+    if (!merchantTransactionId) {
+      throw new AppError(constants.TRANSACTIONID_NOT_FOUND, 400);
+    }
+    // if (!TransactionId) { throw constants.TRANSACTIONID_NOT_RECEIVED; }
+    // if (!paymentInstrument) { throw constants.PAYMENT_INSTRUMENT_NOT_RECEIVED; }
+
+    const saltKey = process.env.PHONEPE_SALTKEY;
+
+    const saltIndex = process.env.PHONEPE_SALTINDEX;
+
+    const encodeData =
+      "/pg/v1/status/" +
+      process.env.PHONEPE_MERCHANTID +
+      "/" +
+      merchantTransactionId +
+      saltKey;
+
+    const hash = crypto.createHash("sha256");
+
+    //Pass the original data to be hashed
+    const originalValue = hash.update(encodeData, "utf-8");
+
+    //Creating the hash value in the specific format
+    const hashValue = originalValue.digest("hex");
+
+    const sha256 = hashValue + "###" + saltIndex;
+
+    const options = {
+      method: "GET",
+      url: `${process.env.PHONEPE_CHECKSTATUS_API}${process.env.PHONEPE_MERCHANTID}/${merchantTransactionId}`,
+      headers: {
+        accept: "application/json",
+        "Content-Type": "application/json",
+        "x-verify": sha256,
+        "X-MERCHANT-ID": process.env.PHONEPE_MERCHANTID,
+      },
+    };
+
+    const phonepeData: any = await axios
+      .request(options)
+      .then(function (response: any) {
+        return response.data;
+      })
+      .catch(function (error: any) {
+        console.error(error);
+      });
+
+    if (
+      phonepeData.code !== "PAYMENT_SUCCESS" ||
+      phonepeData.success !== true
+    ) {
+      throw new AppError(phonepeData.message, 400);
+    }
+    sendResponse(
+      response,
+      200,
+      "success",
+      phonepeData.message,
+      phonepeData.data
+    );
   }
-  // if (!TransactionId) { throw constants.TRANSACTIONID_NOT_RECEIVED; }
-  // if (!paymentInstrument) { throw constants.PAYMENT_INSTRUMENT_NOT_RECEIVED; }
-
-  const saltKey = process.env.PHONEPE_SALTKEY;
-
-  const saltIndex = process.env.PHONEPE_SALTINDEX;
-
-  const encodeData =
-    "/pg/v1/status/" +
-    process.env.PHONEPE_MERCHANTID +
-    "/" +
-    merchantTransactionId +
-    saltKey;
-
-  const hash = crypto.createHash("sha256");
-
-  //Pass the original data to be hashed
-  const originalValue = hash.update(encodeData, "utf-8");
-
-  //Creating the hash value in the specific format
-  const hashValue = originalValue.digest("hex");
-
-  const sha256 = hashValue + "###" + saltIndex;
-
-  const options = {
-    method: "GET",
-    url: `${process.env.PHONEPE_CHECKSTATUS_API}${process.env.PHONEPE_MERCHANTID}/${merchantTransactionId}`,
-    headers: {
-      accept: "application/json",
-      "Content-Type": "application/json",
-      "x-verify": sha256,
-      "X-MERCHANT-ID": process.env.PHONEPE_MERCHANTID,
-    },
-  };
-
-  const phonepeData: any = await axios
-    .request(options)
-    .then(function (response: any) {
-      return response.data;
-    })
-    .catch(function (error: any) {
-      console.error(error);
-    });
-
-  if (phonepeData.code !== "PAYMENT_SUCCESS" || phonepeData.success !== true) {
-    throw new AppError(phonepeData.message, 400);
-  }
-  sendResponse(response, 200, "success", phonepeData.message, phonepeData.data);
-};
+);
 
 const authenticateToken = catchAsync(
   async (
@@ -452,9 +467,12 @@ const booking = catchAsync(
     };
 
     // Call the getfareQuote service method
-    const booking: any = await getBooking(request, response, next);
-    returnObj.data = ssr;
-    returnObj.message = "Booking fetched successfully";
+    
+      const booking: any = await getBooking(request, response, next);
+      returnObj.data = booking;
+      returnObj.message = "Booking fetched successfully";
+
+
     if (!booking) {
       returnObj.flag = false;
       returnObj.message = constants.BOOKING_FAILED_FOR_NONLCC;
