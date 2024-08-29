@@ -16,6 +16,7 @@ const initializeRoutes = (router) => {
     router.get(`${path}ssr`, homeController_1.ssr);
     router.get(`${path}pay`, homeController_1.createPayment);
     router.get(`${path}payment/validate/:merchantTransactionId`, homeController_1.paymentStatus);
+    router.get(`${path}booking`, homeController_1.booking);
     /* *****POST******
           ==============================================*/
     router.post(`${path}authenticate`, homeController_1.authenticateToken);

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.paymentStatus = exports.createPayment = exports.ssr = exports.getAirportsList = exports.getAirportsByCode = exports.searchFlights = exports.fareRules = exports.fareQuote = exports.authenticateToken = exports.getCountryList = void 0;
+exports.booking = exports.paymentStatus = exports.createPayment = exports.ssr = exports.getAirportsList = exports.getAirportsByCode = exports.searchFlights = exports.fareRules = exports.fareQuote = exports.authenticateToken = exports.getCountryList = void 0;
 const responseUtils_1 = require("../utils/responseUtils");
 const country_1 = require("../models/country");
 const home_service_1 = require("../services/home.service");
@@ -95,7 +95,7 @@ const searchFlights = (0, responseUtils_1.catchAsync)(async (request, response, 
     }
     returnObj.data = flights;
     returnObj.message = "Flights fetched successfully";
-    (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data);
+    (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data[0]);
 });
 exports.searchFlights = searchFlights;
 const fareRules = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
@@ -273,3 +273,21 @@ const authenticateToken = (0, responseUtils_1.catchAsync)(async (request, respon
     (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 500, "Success", returnObj.message, returnObj.data);
 });
 exports.authenticateToken = authenticateToken;
+const booking = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
+    const returnObj = {
+        data: {},
+        flag: true,
+        type: "",
+        message: "",
+    };
+    // Call the getfareQuote service method
+    const booking = await (0, home_service_1.getBooking)(request, response, next);
+    returnObj.data = ssr;
+    returnObj.message = "Booking fetched successfully";
+    if (!booking) {
+        returnObj.flag = false;
+        returnObj.message = home_constants_1.constants.BOOKING_FAILED_FOR_NONLCC;
+    }
+    (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data);
+});
+exports.booking = booking;

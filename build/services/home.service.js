@@ -3,16 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getSSR = exports.getFareRule = exports.authenticate = exports.searchFlights = exports.getFareQuote = exports.getClientIp = exports.getAirportList = exports.getAirportByCode = void 0;
+exports.getBooking = exports.getSSR = exports.getFareRule = exports.authenticate = exports.searchFlights = exports.getFareQuote = exports.getClientIp = exports.getAirportList = exports.getAirportByCode = void 0;
 const authToken_1 = __importDefault(require("../models/authToken"));
-const btoa_1 = __importDefault(require("btoa"));
 const appError_1 = require("../utils/appError");
 const requestAPI_1 = require("../utils/requestAPI");
 const home_constants_1 = require("../constants/home.constants");
 const airport_1 = require("../models/airport");
-const axios_1 = __importDefault(require("axios"));
-const crypto_1 = __importDefault(require("crypto"));
-const os_1 = __importDefault(require("os"));
 const getAirportList = async (Start, End) => {
     try {
         const airports = await airport_1.Airport.find()
@@ -420,59 +416,44 @@ const getDateTimeWithTimeOfDay = async (date, timeOfDay) => {
 const getSourceParameter = async (type) => {
     return home_constants_1.constants.SOURCES[type] || [];
 };
-const generateTransactionId = () => {
-    const timestamp = Date.now();
-    const randomNum = Math.floor(Math.random() * 1000000);
-    return `HS-${timestamp}${randomNum}`;
+const getBooking = async (request, response, next) => {
+    try {
+        const { ResultIndex } = request.query;
+        if (!ResultIndex) {
+            throw new appError_1.AppError("ResultIndex is required", 400);
+        }
+        let AuthData = await authToken_1.default.findOne().sort({ _id: -1 }).exec();
+        if (!AuthData) {
+            await authenticate(request, response, next);
+            AuthData = await authToken_1.default.findOne().sort({ _id: -1 }).exec();
+        }
+        if (!AuthData) {
+            throw new appError_1.AppError("Authentication failed. No token found.", 500);
+        }
+        const passenger = request.body.Passengers;
+        const requestBody = {
+            EndUserIp: await getClientIp(request, response, next),
+            TokenId: AuthData.tokenId,
+            TraceId: request.cookies.tekTravelsTraceId,
+            ResultIndex: ResultIndex.toString(),
+            Passengers: passenger,
+        };
+        let apiResponse;
+        try {
+            apiResponse = await (0, requestAPI_1.sendApiRequest)({
+                url: home_constants_1.constants.API_URLS.BOOKING,
+                data: requestBody,
+            });
+            console.log(apiResponse);
+            return apiResponse.data.Response.Response;
+        }
+        catch (err) {
+            console.error("Error Response:", err.response ? err.response.data : err.message);
+            throw new appError_1.AppError(home_constants_1.constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
+        }
+    }
+    catch (err) {
+        throw new appError_1.AppError(err.message, err.statusCode || 500);
+    }
 };
-const objectId = () => {
-    const secondInHex = Math.floor(new Date().getTime() / 1000).toString(16);
-    const machineId = crypto_1.default
-        .createHash("md5")
-        .update(os_1.default.hostname())
-        .digest("hex")
-        .slice(0, 6);
-    const processId = process.pid.toString(16).slice(0, 4).padStart(4, "0");
-    const counter = process.hrtime()[1].toString(16).slice(0, 6).padStart(6, "0");
-    return secondInHex + machineId + processId + counter;
-};
-const createPayment = async (response) => {
-    let data = {
-        merchantId: "M1CYTZHRDI5E",
-        merchantTransactionId: 987455446545,
-        merchantUserId: 321448856,
-        amount: 1 * 100,
-        redirectUrl: "http://localhost:8000/fwu/api/v1",
-        redirectMode: "REDIRECT",
-        callbackUrl: "http://localhost:8000/fwu/api/v1",
-        mobileNumber: "",
-        paymentInstrument: {
-            type: "PAY_PAGE",
-        },
-    };
-    let encode = (0, btoa_1.default)(JSON.stringify(data));
-    let saltKey = "1667c257-14d9-4806-9e08-1be522b79426";
-    let saltIndex = 1;
-    let encodedData = encode + "/pg/v1/pay" + saltKey;
-    var hash = crypto_1.default.createHash("sha256");
-    //Pass the original data to be hashed
-    let originalValue = hash.update(encodedData, "utf-8");
-    //Creating the hash value in the specific format
-    let hashValue = originalValue.digest("hex");
-    let sha256 = hashValue + "###" + saltIndex;
-    const options = {
-        method: "POST",
-        url: "https://api.phonepe.com/apis/hermes/pg/v1/pay",
-        data: { request: encode },
-        headers: { "x-verify": sha256, "Content-Type": "application/json" },
-    };
-    let result = await axios_1.default
-        .request(options)
-        .then(function (response) {
-        return response.data;
-    })
-        .catch(function (error) {
-        console.log(error);
-    });
-    console.log(result);
-};
+exports.getBooking = getBooking;

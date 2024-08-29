@@ -9,6 +9,7 @@ exports.constants = {
         FARE_QUOTE: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/FareQuote",
         AUTHENTICATE: "https://api.tektravels.com/SharedServices/SharedData.svc/rest/Authenticate",
         SSR: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/SSR",
+        BOOKING: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/Book",
     },
     ERROR_TYPE: {
         ERROR: "ERROR",
@@ -24,6 +25,7 @@ exports.constants = {
     LOCATION: "India",
     FARE_RULE_ERROR: "An error occurred while fetching the fareRule.",
     FARE_QUOTE_ERROR: "An error occurred while fetching the fareQuote.",
+    BOOKING_FAILED_FOR_NONLCC: "An error occurred while booking the flight.",
     SEARCH_FLIGHT_ERROR: "An error occurred while searching for flights.",
     AIRPORT_BY_CODE_SEARCH_ERROR: "An error occurred while fetching the airport list.",
     SOURCES: {
