@@ -610,10 +610,10 @@ const getBooking = async (
     const userId = user.id;
     console.log(userId);
 
-    if (apiResponse?.data?.Error?.ErrorCode === 0) {
+    if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
       const booking = new Booking({
         userId,
-        ...apiResponse.data,
+        ...apiResponse.data.Response.Response,
       });
 
       await booking.save();
