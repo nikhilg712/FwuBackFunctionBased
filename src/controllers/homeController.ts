@@ -171,7 +171,7 @@ const searchFlights = catchAsync(
       returnObj.flag ? 200 : 400,
       returnObj.flag ? "Success" : "Failure",
       returnObj.message,
-      returnObj.data
+      returnObj.data[0]
     );
   }
 );
@@ -437,6 +437,37 @@ const authenticateToken = catchAsync(
   }
 );
 
+const booking = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: any = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    // Call the getfareQuote service method
+    const booking: any = await getSSR(request, response, next);
+    returnObj.data = ssr;
+    returnObj.message = "SSR fetched successfully";
+    if (!ssr) {
+      returnObj.flag = false;
+      returnObj.message = constants.FARE_QUOTE_ERROR;
+    }
+
+    sendResponse(
+      response,
+      returnObj.flag ? 200 : 400,
+      returnObj.flag ? "Success" : "Failure",
+      returnObj.message,
+      returnObj.data
+    );
+  }
+);
 export {
   getCountryList,
   authenticateToken,
@@ -448,4 +479,5 @@ export {
   ssr,
   createPayment,
   paymentStatus,
+  booking,
 };
