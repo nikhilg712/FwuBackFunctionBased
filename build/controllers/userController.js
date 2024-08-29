@@ -1,392 +1,242 @@
-import { NextFunction, Request, Response } from "express";
-import { catchAsync, sendResponse } from "../utils/responseUtils";
-import { UserResponseType } from "../interface/user.interface";
-import {
-  emailOTPValidator,
-  phoneNumberValidator,
-  profileUpdateValidator,
-} from "../utils/validator";
-import { findUserByEmail, sendOtp } from "../services/user.service";
-import { IUser, User } from "../models/users";
-import { AppError } from "../utils/appError";
-import bcrypt from "bcrypt";
-import OTP from "../models/otp";
-import passport from "passport";
-import generateSignedUrl from "../middleware/s3";
-
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getAwsUrl = exports.updateUser = exports.googleSignInCallback = exports.googleSignIn = exports.verifyLogin = exports.login = exports.getUser = exports.logout = exports.verifySignup = exports.signup = void 0;
+const responseUtils_1 = require("../utils/responseUtils");
+const validator_1 = require("../utils/validator");
+const user_service_1 = require("../services/user.service");
+const users_1 = require("../models/users");
+const appError_1 = require("../utils/appError");
+const bcrypt_1 = __importDefault(require("bcrypt"));
+const passport_1 = __importDefault(require("passport"));
+const s3_1 = __importDefault(require("../middleware/s3"));
 // For signup with (email + password) or (phone)
-const signup = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
+const signup = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     //await User.deleteMany({}); // For developement purpose only, remove it later!
-
     const { provider, email, password, phone } = request.body; // provider: email | phone
-
     // EMAIL + PASSWORD AUTH
     if (provider === "email") {
-      // Validation logic in this strategy
-
-      // Validate query params
-      await emailOTPValidator.validate({
-        email: email,
-        password: password,
-      });
-      // If we are here, it means validation was successful
-      // Handle email
-      const existingUser = await User.findOne({
-        email: email,
-        isVerified: true,
-      }).exec();
-      if (existingUser) {
-        throw new AppError(
-          "A user with provided email address already exists",
-          400
-        );
-      }
-      // Handle password
-      const saltRounds = 10;
-      const salt = await bcrypt.genSalt(saltRounds);
-      const hashedPassword = await bcrypt.hash(password, salt);
-      // Save user to db with isVerified:false in db as default value in model
-      const user = new User({
-        email: email,
-        password: hashedPassword,
-      });
-      await user.save();
-      // Send OTP to email for confirmation
-      await sendOtp("email", email, null);
-      sendResponse(
-        response,
-        200,
-        "Success",
-        "Otp Sent Successfully to email",
-        {}
-      );
+        // Validation logic in this strategy
+        // Validate query params
+        await validator_1.emailOTPValidator.validate({
+            email: email,
+            password: password,
+        });
+        // If we are here, it means validation was successful
+        // Handle email
+        const existingUser = await users_1.User.findOne({
+            email: email,
+            isVerified: true,
+        }).exec();
+        if (existingUser) {
+            throw new appError_1.AppError("A user with provided email address already exists", 400);
+        }
+        // Handle password
+        const saltRounds = 10;
+        const salt = await bcrypt_1.default.genSalt(saltRounds);
+        const hashedPassword = await bcrypt_1.default.hash(password, salt);
+        // Save user to db with isVerified:false in db as default value in model
+        const user = new users_1.User({
+            email: email,
+            password: hashedPassword,
+        });
+        await user.save();
+        // Send OTP to email for confirmation
+        await (0, user_service_1.sendOtp)("email", email, null);
+        (0, responseUtils_1.sendResponse)(response, 200, "Success", "Otp Sent Successfully to email", {});
     }
     // PHONE NUMBER AUTH
     else if (provider === "phone") {
-      // Validate query params
-      await phoneNumberValidator.validate({
-        phone: phone,
-      });
-
-      // If we are here, it means validation was successful
-
-      // Handle phone
-      const existingUser = await User.findOne({
-        phone: phone,
-        isVerified: true,
-      }).exec();
-      if (existingUser) {
-        throw new AppError(
-          "A user with provided phone number already exists",
-          400
-        );
-      }
-
-      // Save user to db with isVerified:false in db as default value in model
-      const user = new User({
-        phone: phone,
-      });
-      await user.save();
-
-      // Send OTP to phone for confirmation
-      await sendOtp("phone", null, phone);
-      sendResponse(
-        response,
-        200,
-        "Success",
-        "Otp Sent Successfully to phone",
-        {}
-      );
-    } else {
-      throw new AppError("Invalid authentication provider", 400);
+        // Validate query params
+        await validator_1.phoneNumberValidator.validate({
+            phone: phone,
+        });
+        // If we are here, it means validation was successful
+        // Handle phone
+        const existingUser = await users_1.User.findOne({
+            phone: phone,
+            isVerified: true,
+        }).exec();
+        if (existingUser) {
+            throw new appError_1.AppError("A user with provided phone number already exists", 400);
+        }
+        // Save user to db with isVerified:false in db as default value in model
+        const user = new users_1.User({
+            phone: phone,
+        });
+        await user.save();
+        // Send OTP to phone for confirmation
+        await (0, user_service_1.sendOtp)("phone", null, phone);
+        (0, responseUtils_1.sendResponse)(response, 200, "Success", "Otp Sent Successfully to phone", {});
     }
-  }
-);
-
+    else {
+        throw new appError_1.AppError("Invalid authentication provider", 400);
+    }
+});
+exports.signup = signup;
 // Verify OTP for (email + password) or (phone)
-const verifySignup = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
+const verifySignup = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     const { provider, email, phone, otp } = request.body; // provider: email | phone
-
     if (provider === "email") {
-      // Validation logic inside passport strategy
-      passport.authenticate(
-        "signup-email",
-        (err: unknown, user: any, info: any) => {
-          if (err) return next(err);
-          if (!user) return next(err); // Handle failed login
-
-          request.login(user, (err: unknown) => {
-            if (err) return next(err);
-            return sendResponse(
-              response,
-              200,
-              "Success",
-              "login success",
-              user
-            );
-          });
-        }
-      )(request, response, next);
-    } else if (provider === "phone") {
-      // Validation logic inside passport strategy
-      passport.authenticate(
-        "signup-phone",
-        (err: unknown, user: any, info: any) => {
-          if (err) return next(err);
-          if (!user) return next(err); // Handle failed login
-
-          request.login(user, (err: unknown) => {
-            if (err) return next(err);
-            return sendResponse(
-              response,
-              200,
-              "Success",
-              "login success",
-              user
-            );
-          });
-        }
-      )(request, response, next);
-    } else {
-      throw new AppError("Invalid OTP Provider", 400);
+        // Validation logic inside passport strategy
+        passport_1.default.authenticate("signup-email", (err, user, info) => {
+            if (err)
+                return next(err);
+            if (!user)
+                return next(err); // Handle failed login
+            request.login(user, (err) => {
+                if (err)
+                    return next(err);
+                return (0, responseUtils_1.sendResponse)(response, 200, "Success", "login success", user);
+            });
+        })(request, response, next);
     }
-  }
-);
-
+    else if (provider === "phone") {
+        // Validation logic inside passport strategy
+        passport_1.default.authenticate("signup-phone", (err, user, info) => {
+            if (err)
+                return next(err);
+            if (!user)
+                return next(err); // Handle failed login
+            request.login(user, (err) => {
+                if (err)
+                    return next(err);
+                return (0, responseUtils_1.sendResponse)(response, 200, "Success", "login success", user);
+            });
+        })(request, response, next);
+    }
+    else {
+        throw new appError_1.AppError("Invalid OTP Provider", 400);
+    }
+});
+exports.verifySignup = verifySignup;
 // Email Password login
-const login = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
+const login = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     const { provider, email, password, phone } = request.body; // provider: email | phone
     if (provider === "email") {
-      passport.authenticate(
-        "login-email",
-        (err: unknown, user: any, info: any) => {
-          if (err) return next(err);
-          if (!user) return next(err); // Handle failed login
-
-          request.login(user, (err: unknown) => {
-            if (err) return next(err);
-            return sendResponse(
-              response,
-              200,
-              "Success",
-              "login success",
-              user
-            );
-          });
-        }
-      )(request, response, next);
-    } else if (provider === "phone") {
-      const user = await User.findOne({
-        phone: phone,
-        isVerified: true,
-      }).exec();
-
-      if (!user) {
-        throw new AppError("No user with provided phone exists", 400);
-      }
-
-      await sendOtp("phone", null, phone);
-    } else {
-      throw new AppError("Invalid provider", 400);
+        passport_1.default.authenticate("login-email", (err, user, info) => {
+            if (err)
+                return next(err);
+            if (!user)
+                return next(err); // Handle failed login
+            request.login(user, (err) => {
+                if (err)
+                    return next(err);
+                return (0, responseUtils_1.sendResponse)(response, 200, "Success", "login success", user);
+            });
+        })(request, response, next);
     }
-  }
-);
-
+    else if (provider === "phone") {
+        const user = await users_1.User.findOne({
+            phone: phone,
+            isVerified: true,
+        }).exec();
+        if (!user) {
+            throw new appError_1.AppError("No user with provided phone exists", 400);
+        }
+        await (0, user_service_1.sendOtp)("phone", null, phone);
+    }
+    else {
+        throw new appError_1.AppError("Invalid provider", 400);
+    }
+});
+exports.login = login;
 // Login by phone otp confirmation
-const verifyLogin = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
+const verifyLogin = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     const { provider, email, phone, otp } = request.body; // provider: email | phone
-
-    passport.authenticate(
-      "login-phone",
-      (err: unknown, user: any, info: any) => {
-        if (err) return next(err);
-        if (!user) return next(err); // Handle failed login
-
-        request.login(user, (err: unknown) => {
-          if (err) return next(err);
-          return sendResponse(response, 200, "Success", "login success", user);
+    passport_1.default.authenticate("login-phone", (err, user, info) => {
+        if (err)
+            return next(err);
+        if (!user)
+            return next(err); // Handle failed login
+        request.login(user, (err) => {
+            if (err)
+                return next(err);
+            return (0, responseUtils_1.sendResponse)(response, 200, "Success", "login success", user);
         });
-      }
-    )(request, response, next);
-  }
-);
-
+    })(request, response, next);
+});
+exports.verifyLogin = verifyLogin;
 // Get profile data
-const getUser = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
+const getUser = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     console.log("Req: ", request);
-
     let user = request.user;
     console.log("Req user: ", user);
-
     if (request.isAuthenticated()) {
-      sendResponse(response, 200, "Success", "Authenticated", user);
-    } else {
-      sendResponse(response, 200, "Failed", "Not authenticated", {});
+        (0, responseUtils_1.sendResponse)(response, 200, "Success", "Authenticated", user);
     }
-  }
-);
-
+    else {
+        (0, responseUtils_1.sendResponse)(response, 200, "Failed", "Not authenticated", {});
+    }
+});
+exports.getUser = getUser;
 // Google signin
-const googleSignIn = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
+const googleSignIn = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     console.log("Authenticating with gmail...");
     //await User.deleteMany({});
-    passport.authenticate("google", { scope: ["profile", "email"] })(
-      request,
-      response,
-      next
-    );
-  }
-);
-
+    passport_1.default.authenticate("google", { scope: ["profile", "email"] })(request, response, next);
+});
+exports.googleSignIn = googleSignIn;
 // Google signin callback, to be called when google signin is completed
-const googleSignInCallback = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    passport.authenticate(
-      "google",
-      (err: unknown, user: unknown, info: unknown) => {
+const googleSignInCallback = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
+    passport_1.default.authenticate("google", (err, user, info) => {
         if (err) {
-          console.error("Error:", err);
-          return next(err);
+            console.error("Error:", err);
+            return next(err);
         }
         if (!user) {
-          console.log("No user found");
-          return next(new Error("Authentication failed"));
+            console.log("No user found");
+            return next(new Error("Authentication failed"));
         }
-
         request.logIn(user, (err) => {
-          if (err) {
-            console.error("Login error:", err);
-            return next(err);
-          }
-
-          response.redirect(`http://localhost:3000?authSuccess=true`);
+            if (err) {
+                console.error("Login error:", err);
+                return next(err);
+            }
+            response.redirect(`http://localhost:3000?authSuccess=true`);
         });
-      }
-    )(request, response, next);
-  }
-);
-
+    })(request, response, next);
+});
+exports.googleSignInCallback = googleSignInCallback;
 // Logout
-const logout = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
+const logout = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     request.logout((err) => {
-      if (err) {
-        return next(err);
-      }
-      request.session.destroy((err) => {
         if (err) {
-          return next(err);
+            return next(err);
         }
-        response.clearCookie("connect.sid");
-        sendResponse(
-          response,
-          200,
-          "Success",
-          "User LoggedOut Successfully",
-          {}
-        );
-      });
+        request.session.destroy((err) => {
+            if (err) {
+                return next(err);
+            }
+            response.clearCookie("connect.sid");
+            (0, responseUtils_1.sendResponse)(response, 200, "Success", "User LoggedOut Successfully", {});
+        });
     });
-  }
-);
-
+});
+exports.logout = logout;
 // Update user
-const updateUser = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
+const updateUser = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     const { _id, username, dateOfBirth, gender } = request.body;
-
-    await profileUpdateValidator.validate({
-      username,
-      dateOfBirth,
-      gender,
-    });
-
-    const user = await User.findByIdAndUpdate(
-      _id,
-      {
+    await validator_1.profileUpdateValidator.validate({
         username,
         dateOfBirth,
         gender,
-      },
-      { new: true }
-    );
-
-    sendResponse(
-      response,
-      200,
-      "Success",
-      "Profile updated successfully",
-      user
-    );
-  }
-);
-
-const getAwsUrl = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    const url = await generateSignedUrl();
-    sendResponse(response, 200, "Success", "Aws url generated", url);
-  }
-);
-
-export {
-  signup,
-  verifySignup,
-  logout,
-  getUser,
-  login,
-  verifyLogin,
-  googleSignIn,
-  googleSignInCallback,
-  updateUser,
-  getAwsUrl,
-};
-
+    });
+    const user = await users_1.User.findByIdAndUpdate(_id, {
+        username,
+        dateOfBirth,
+        gender,
+    }, { new: true });
+    (0, responseUtils_1.sendResponse)(response, 200, "Success", "Profile updated successfully", user);
+});
+exports.updateUser = updateUser;
+const getAwsUrl = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
+    const url = await (0, s3_1.default)();
+    (0, responseUtils_1.sendResponse)(response, 200, "Success", "Aws url generated", url);
+});
+exports.getAwsUrl = getAwsUrl;
 // OLD CODE
 // import { NextFunction, Request, Response } from "express";
 // import {
@@ -432,7 +282,6 @@ export {
 // import * as yup from "yup";
 // import { emailValidation, passwordValidation } from "@Utils/validation";
 // import { emailOTPValidator } from "../utils/validator";
-
 // const signup = catchAsync(
 //   async (
 //     request: Request,
@@ -448,7 +297,6 @@ export {
 //     };
 //     // Validate request body
 //     //await signupSchema.validate(request.body, { abortEarly: false });
-
 //     const {
 //       username,
 //       email,
@@ -470,20 +318,17 @@ export {
 //       deviceToken,
 //       googleId,
 //     }: IUser = request.body;
-
 //     // Create new user
 //     // Ensure required fields are provided
 //     if (!phone) {
 //       throw new AppError("Phone number is required", 400);
 //     }
-
 //     // Create address if address data is provided
 //     let addressId: IAddress["_id"] | undefined;
 //     if (address.length > 0) {
 //       const addressData = await createAddress(address);
 //       addressId = addressData;
 //     }
-
 //     // Check if user already exists
 //     let hashedPassword: string | undefined;
 //     if (email) {
@@ -491,7 +336,6 @@ export {
 //       if (existingUser) {
 //         throw new AppError("Email already exists", 400);
 //       }
-
 //       // Encrypt password if provided
 //       if (password) {
 //         const saltRounds = 10;
@@ -499,7 +343,6 @@ export {
 //         hashedPassword = await bcrypt.hash(password, salt);
 //       }
 //     }
-
 //     // Create new user
 //     const newUser = await createUser({
 //       username: username || "",
@@ -522,14 +365,12 @@ export {
 //       deviceToken: deviceToken || "",
 //       googleId: googleId || "",
 //     } as IUser);
-
 //     returnObj.data = newUser;
 //     returnObj.message = constants.SUCCESS_MSG.USER_CREATED;
 //     // Send the response
 //     sendResponse(response, 200, "Success", returnObj.message, returnObj.data);
 //   }
 // );
-
 // const login = catchAsync(
 //   async (
 //     request: Request,
@@ -542,7 +383,6 @@ export {
 //       type: "",
 //       message: "",
 //     };
-
 //     return new Promise((resolve, reject) => {
 //       // eslint-disable-next-line @typescript-eslint/no-explicit-any
 //       passport.authenticate("local", (err: unknown, user: any, info: any) => {
@@ -555,7 +395,6 @@ export {
 //           returnObj.flag = false;
 //           return response.status(401).json(returnObj); // Send response here
 //         }
-
 //         request.logIn(user, (err) => {
 //           if (err) {
 //             return reject(err);
@@ -588,7 +427,6 @@ export {
 //     });
 //   }
 // );
-
 // const logout = catchAsync(
 //   async (
 //     request: Request,
@@ -604,7 +442,6 @@ export {
 //     });
 //   }
 // );
-
 // const getProfile = async (
 //   request: Request,
 //   response: Response,
@@ -616,18 +453,15 @@ export {
 //     type: "",
 //     message: "",
 //   };
-
 //   if (request.isAuthenticated()) {
 //     returnObj.data = request.user;
 //     returnObj.message = constants.SUCCESS_MSG.PROTECTED_ROUTE;
 //   } else {
 //     returnObj.message = constants.ERROR_MSG.UNAUTHORIZED;
 //   }
-
 //   sendResponse(response, 200, "Success", returnObj.message, returnObj.data);
 //   return returnObj;
 // };
-
 // const loginByPhone = catchAsync(
 //   async (
 //     request: Request,
@@ -640,7 +474,6 @@ export {
 //       type: "",
 //       message: "",
 //     };
-
 //     passport.authenticate(
 //       "otp",
 //       (err: unknown, user: IUser | false, info: object) => {
@@ -659,7 +492,6 @@ export {
 //         //     {}
 //         //   );
 //         // }
-
 //         request.logIn(user, (err) => {
 //           if (err) {
 //             return next(err);
@@ -688,7 +520,6 @@ export {
 //     return sendResponse(response, 200, "Success", "", returnObj.data);
 //   }
 // );
-
 // // const sendEmailOtp = catchAsync(
 // //   async (
 // //     request: Request,
@@ -696,15 +527,12 @@ export {
 // //     next: NextFunction
 // //   ): Promise<void> => {
 // //     const { email, password } = request.body;
-
 // //     // Validate query params
 // //     await emailOTPValidator.validate({
 // //       email: email,
 // //       password: password,
 // //     });
-
 // //     // If we are here, it means validation was successful
-
 // //     // Handle email
 // //     const existingUser = await findUserByEmail(email);
 // //     // if (existingUser) {
@@ -713,25 +541,21 @@ export {
 // //     //     400
 // //     //   );
 // //     // }
-
 // //     // Handle password
 // //     const saltRounds = 10;
 // //     const salt = await bcrypt.genSalt(saltRounds);
 // //     const hashedPassword = await bcrypt.hash(password, salt);
-
 // //     // Save user to db with isVerified:false in db as default value in model
 // //     const user = new User({
 // //       email: email,
 // //       password: hashedPassword,
 // //     });
 // //     //await user.save();
-
 // //     // Send OTP for confirmation
 // //     await sendEmailOtpRequest(email);
 // //     sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
 // //   }
 // // );
-
 // const sendOtp = catchAsync(
 //   async (
 //     request: Request,
@@ -741,15 +565,12 @@ export {
 //     const { type, data } = request.body; // type: email or phone, value: user@gmail.com or phn num
 //     if (type === "email") {
 //       const { email, password } = request.body;
-
 //       // Validate query params
 //       await emailOTPValidator.validate({
 //         email: email,
 //         password: password,
 //       });
-
 //       // If we are here, it means validation was successful
-
 //       // Handle email
 //       const existingUser = await findUserByEmail(email);
 //       // if (existingUser) {
@@ -758,19 +579,16 @@ export {
 //       //     400
 //       //   );
 //       // }
-
 //       // Handle password
 //       const saltRounds = 10;
 //       const salt = await bcrypt.genSalt(saltRounds);
 //       const hashedPassword = await bcrypt.hash(password, salt);
-
 //       // Save user to db with isVerified:false in db as default value in model
 //       const user = new User({
 //         email: email,
 //         password: hashedPassword,
 //       });
 //       //await user.save();
-
 //       // Send OTP for confirmation
 //       await sendEmailOtpRequest(email);
 //       sendResponse(response, 200, "Success", "Otp Sent Successfully", {});
@@ -781,7 +599,6 @@ export {
 //     }
 //   }
 // );
-
 // const forgotPasswordController = catchAsync(
 //   async (
 //     request: Request,
@@ -799,12 +616,10 @@ export {
 //     );
 //   }
 // );
-
 // const resetPasswordController = catchAsync(
 //   async (request: Request, response: Response, next: NextFunction) => {
 //     const { token } = request.query;
 //     const { newPassword, confirmPassword } = request.body;
-
 //     if (!token || !newPassword || !confirmPassword) {
 //       return sendResponse(
 //         response,
@@ -814,11 +629,9 @@ export {
 //         {}
 //       );
 //     }
-
 //     if (typeof token !== "string") {
 //       return sendResponse(response, 400, "Error", "Invalid token", {});
 //     }
-
 //     await resetPassword(token, newPassword, confirmPassword);
 //     sendResponse(
 //       response,
@@ -829,7 +642,6 @@ export {
 //     );
 //   }
 // );
-
 // const verifyEmailOtp = catchAsync(
 //   async (
 //     request: Request,
@@ -852,7 +664,6 @@ export {
 //       { isVerified: true },
 //       { new: true }
 //     );
-
 //     return new Promise((resolve, reject) => {
 //       // eslint-disable-next-line @typescript-eslint/no-explicit-any
 //       passport.authenticate("local", (err: unknown, user: any, info: any) => {
@@ -865,7 +676,6 @@ export {
 //           returnObj.flag = false;
 //           return response.status(401).json(returnObj); // Send response here
 //         }
-
 //         request.logIn(user, (err) => {
 //           if (err) {
 //             return reject(err);
@@ -878,7 +688,6 @@ export {
 //     });
 //   }
 // );
-
 // const signupByEmail = catchAsync(
 //   async (
 //     request: Request,
@@ -891,7 +700,6 @@ export {
 //       type: "",
 //       message: "",
 //     };
-
 //     const { email, password } = request.body;
 //     let hashedPassword: string | undefined;
 //     if (email) {
@@ -899,7 +707,6 @@ export {
 //       if (existingUser) {
 //         throw new AppError("Email already exists", 400);
 //       }
-
 //       // Encrypt password if provided
 //       if (password) {
 //         const saltRounds = 10;
@@ -911,7 +718,6 @@ export {
 //       email: email,
 //       password: hashedPassword,
 //     }).save();
-
 //     return new Promise((resolve, reject) => {
 //       // eslint-disable-next-line @typescript-eslint/no-explicit-any
 //       passport.authenticate("local", (err: unknown, user: any, info: any) => {
@@ -924,7 +730,6 @@ export {
 //           returnObj.flag = false;
 //           return response.status(401).json(returnObj); // Send response here
 //         }
-
 //         request.logIn(user, (err) => {
 //           if (err) {
 //             return reject(err);
@@ -937,7 +742,6 @@ export {
 //     });
 //   }
 // );
-
 // const verifyOtp = catchAsync(
 //   async (
 //     request: Request,
@@ -950,7 +754,6 @@ export {
 //       type: "",
 //       message: "",
 //     };
-
 //     const { phone, otp }: OtpRequestBody = request.body;
 //     const verified: boolean = await verifyOtpRequest(phone, otp);
 //     if (!verified) {
@@ -968,7 +771,6 @@ export {
 //         if (err) {
 //           return next(err);
 //         }
-
 //         request.logIn(user, (err) => {
 //           if (err) {
 //             return next(err);
@@ -997,7 +799,6 @@ export {
 //     return sendResponse(response, 200, "Success", "", returnObj.data);
 //   }
 // );
-
 // const googleAuth = catchAsync(
 //   async (
 //     request: Request,
@@ -1010,7 +811,6 @@ export {
 //     )(request, response, next);
 //   }
 // );
-
 // const googleAuthCallback = catchAsync(
 //   async (
 //     request: Request,
@@ -1034,27 +834,23 @@ export {
 //             {}
 //           );
 //         }
-
 //         request.logIn(user, (err) => {
 //           if (err) {
 //             console.error("Error logging in user:", err); // Log login error
 //             return next(err);
 //           }
-
 //           const data = {
 //             _id: user._id,
 //             username: user.username,
 //             email: user.email,
 //             // Other user details
 //           };
-
 //           return sendResponse(response, 200, "Success", "", data);
 //         });
 //       }
 //     )(request, response, next);
 //   }
 // );
-
 // const newCoTraveller = catchAsync(
 //   async (
 //     request: Request,
@@ -1078,20 +874,17 @@ export {
 //             {}
 //           );
 //         }
-
 //         request.logIn(user, (err) => {
 //           if (err) {
 //             console.error("Error logging in user:", err); // Log login error
 //             return next(err);
 //           }
-
 //           const data = {
 //             _id: user._id,
 //             username: user.username,
 //             email: user.email,
 //             // Other user details
 //           };
-
 //           return sendResponse(response, 200, "Success", "", data);
 //         });
 //       }
@@ -1102,12 +895,10 @@ export {
 //       type: "",
 //       message: "",
 //     };
-
 //     if (request.isAuthenticated()) {
 //       const user = request.user as { id: string };
 //       const userId = user.id;
 //       console.log(userId);
-
 //       const coTraveler = await createCoTraveller(userId, request.body);
 //       returnObj.data = coTraveler;
 //       returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_CREATED;
@@ -1123,7 +914,6 @@ export {
 //     );
 //   }
 // );
-
 // const updateCoTraveller = catchAsync(
 //   async (
 //     request: Request,
@@ -1136,7 +926,6 @@ export {
 //       type: "",
 //       message: "",
 //     };
-
 //     if (request.isAuthenticated()) {
 //       const coTraveller = await findCoTravellerById(
 //         request.params.coTravellerId
@@ -1163,7 +952,6 @@ export {
 //     );
 //   }
 // );
-
 // const deleteCoTraveller = catchAsync(
 //   async (
 //     request: Request,
@@ -1176,7 +964,6 @@ export {
 //       type: "",
 //       message: "",
 //     };
-
 //     if (request.isAuthenticated()) {
 //       // Await the result from getCoTravellerById
 //       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1213,7 +1000,6 @@ export {
 //     );
 //   }
 // );
-
 // const getCotravellers = catchAsync(
 //   async (
 //     request: Request,
@@ -1227,7 +1013,6 @@ export {
 //       type: "",
 //       message: "",
 //     };
-
 //     if (request.isAuthenticated()) {
 //       const user = request.user as { id: string }; // Explicitly tell TypeScript that user has an id field
 //       const userId = user.id;
@@ -1257,7 +1042,6 @@ export {
 //     );
 //   }
 // );
-
 // export {
 //   signup,
 //   login,

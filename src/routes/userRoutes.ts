@@ -8,7 +8,8 @@ import {
   verifyLogin,
   googleSignIn,
   googleSignInCallback,
-  updateUser
+  updateUser,
+  getAwsUrl,
 } from "../controllers/userController";
 import passport from "passport";
 import { isAuthenticated } from "../middleware/authenticate";
@@ -29,6 +30,7 @@ const initializeRoutes = (router: Router) => {
   router.get(`${path}google-signin`, googleSignIn);
   router.get(`${path}auth/google/callback`, googleSignInCallback);
   router.post(`${path}update`, updateUser);
+  router.get(`${path}aws-url`, getAwsUrl);
 
   // router.get(`${path}profile`, isAuthenticated, getProfile);
   // router.get("/auth/google", googleAuth);

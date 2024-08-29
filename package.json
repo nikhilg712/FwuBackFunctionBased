@@ -17,8 +17,10 @@
     "@azure/identity": "^4.4.1",
     "@azure/msal-node": "^2.13.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",
+    "aws-sdk": "^2.1685.0",
     "axios": "^1.7.2",
     "bcrypt": "^5.1.1",
+    "btoa": "^1.2.1",
     "connect-mongo": "^5.1.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
@@ -46,6 +48,7 @@
   "devDependencies": {
     "@eslint/js": "^9.9.0",
     "@types/bcrypt": "^5.0.2",
+    "@types/btoa": "^1.2.5",
     "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.17",
     "@types/emailjs-mime-codec": "^2.0.2",

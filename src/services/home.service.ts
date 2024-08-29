@@ -11,6 +11,7 @@ import {
   SelectedFareQuote,
   SSRFlightData,
 } from "../interface/home.interface";
+import btoa from "btoa";
 import { AppError } from "../utils/appError";
 import { sendResponse } from "../utils/responseUtils";
 import { sendApiRequest } from "../utils/requestAPI";
@@ -557,50 +558,67 @@ const getSourceParameter = async (type: string): Promise<string[]> => {
   return constants.SOURCES[type] || [];
 };
 
+const generateTransactionId = () => {
+  const timestamp = Date.now();
+  const randomNum = Math.floor(Math.random() * 1000000);
+  return `HS-${timestamp}${randomNum}`;
+};
 
+const objectId = () => {
+  const secondInHex = Math.floor(new Date().getTime() / 1000).toString(16);
+  const machineId = crypto
+    .createHash("md5")
+    .update(os.hostname())
+    .digest("hex")
+    .slice(0, 6);
+  const processId = process.pid.toString(16).slice(0, 4).padStart(4, "0");
+  const counter = process.hrtime()[1].toString(16).slice(0, 6).padStart(6, "0");
 
-// const paymentStatus = async (request: Request, response: Response) => {
-//   const { merchantTransactionId } = request.params;
-//   // check the status of the payment using merchantTransactionId
-//   if (merchantTransactionId) {
-//     let statusUrl =
-//       `https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/status/PGTESTPAYUAT/` +
-//       merchantTransactionId;
+  return secondInHex + machineId + processId + counter;
+};
+const createPayment = async (response: Response): Promise<void> => {
+  let data = {
+    merchantId: "M1CYTZHRDI5E",
+    merchantTransactionId: 987455446545,
+    merchantUserId: 321448856,
+    amount: 1 * 100,
+    redirectUrl: "http://localhost:8000/fwu/api/v1",
+    redirectMode: "REDIRECT",
+    callbackUrl: "http://localhost:8000/fwu/api/v1",
+    mobileNumber: "",
+    paymentInstrument: {
+      type: "PAY_PAGE",
+    },
+  };
+  let encode = btoa(JSON.stringify(data));
+  let saltKey = "1667c257-14d9-4806-9e08-1be522b79426";
+  let saltIndex = 1;
 
-//     // generate X-VERIFY
-//     let string =
-//       `/pg/v1/status/PGTESTPAYUAT/` +
-//       merchantTransactionId +
-//       "099eb0cd-02cf-4e2a-8aca-3e6c6aff0399";
-//     let sha256_val = sha256(string);
-//     let xVerifyChecksum = sha256_val + "###" + 1;
+  let encodedData = encode + "/pg/v1/pay" + saltKey;
+  var hash = crypto.createHash("sha256");
+  //Pass the original data to be hashed
+  let originalValue = hash.update(encodedData, "utf-8");
+  //Creating the hash value in the specific format
+  let hashValue = originalValue.digest("hex");
+  let sha256 = hashValue + "###" + saltIndex;
 
-//     axios
-//       .get(statusUrl, {
-//         headers: {
-//           "Content-Type": "application/json",
-//           "X-VERIFY": xVerifyChecksum,
-//           "X-MERCHANT-ID": merchantTransactionId,
-//           accept: "application/json",
-//         },
-//       })
-//       .then(function (res) {
-//         console.log("response->", res.data);
-//         if (res.data && res.data.code === "PAYMENT_SUCCESS") {
-//           // redirect to FE payment success status page
-//           response.send(res.data);
-//         } else {
-//           // redirect to FE payment failure / pending status page
-//         }
-//       })
-//       .catch(function (error) {
-//         // redirect to FE payment failure / pending status page
-//         response.send(error);
-//       });
-//   } else {
-//     response.send("Sorry!! Error");
-//   }
-// };
+  const options = {
+    method: "POST",
+    url: "https://api.phonepe.com/apis/hermes/pg/v1/pay",
+    data: { request: encode },
+    headers: { "x-verify": sha256, "Content-Type": "application/json" },
+  };
+
+  let result = await axios
+    .request(options)
+    .then(function (response: any) {
+      return response.data;
+    })
+    .catch(function (error: any) {
+      console.log(error);
+    });
+  console.log(result);
+};
 
 // const paymentStatus = async (request: Request, response: Response) => {
 //   const { merchantTransactionId } = request.params;
