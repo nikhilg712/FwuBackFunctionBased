@@ -20,6 +20,7 @@ export const constants = {
       "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/FareQuote",
     AUTHENTICATE:
       "https://api.tektravels.com/SharedServices/SharedData.svc/rest/Authenticate",
+    SSR: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/SSR",
   },
   ERROR_TYPE: {
     ERROR: "ERROR",
@@ -29,6 +30,7 @@ export const constants = {
     FARE_RULE_FETCH_FAILED: "Can't fetch fair rules",
     FARE_QUOTE_FETCH_FAILED: "Can't fetch fair quotes",
     AUTHENTICATION_FAILED: "Authentication Failed",
+    SSR_FETCH_FAILED: "SSR Ftech Failed",
   },
   ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND",
   LOCATION: "India",

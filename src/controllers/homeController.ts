@@ -28,6 +28,10 @@ import {
 } from "../interface/home.interface";
 import { constants } from "../constants/home.constants";
 import { AppError } from "../utils/appError";
+import crypto from "crypto";
+import { Buffer } from "buffer";
+import os from "os";
+import axios from "axios";
 
 const getCountryList = catchAsync(
   async (
@@ -274,8 +278,133 @@ const ssr = catchAsync(
     );
   }
 );
+const generateTransactionId = () => {
+  const timestamp = Date.now();
+  const randomNum = Math.floor(Math.random() * 1000000);
+  return `HS-${timestamp}${randomNum}`;
+};
 
+const objectId = () => {
+  const secondInHex = Math.floor(new Date().getTime() / 1000).toString(16);
+  const machineId = crypto
+    .createHash("md5")
+    .update(os.hostname())
+    .digest("hex")
+    .slice(0, 6);
+  const processId = process.pid.toString(16).slice(0, 4).padStart(4, "0");
+  const counter = process.hrtime()[1].toString(16).slice(0, 6).padStart(6, "0");
 
+  return secondInHex + machineId + processId + counter;
+};
+
+const createPayment = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const merchantTransactionId = generateTransactionId();
+    const data = {
+      merchantId: process.env.PHONEPE_MERCHANTID,
+      merchantTransactionId,
+      merchantUserId: objectId(),
+      amount: 1 * 100,
+      redirectUrl: `${process.env.PHONEPE_REDIRECT_URI}${merchantTransactionId}`,
+      redirectMode: "REDIRECT",
+      callbackUrl: `${process.env.PHONEPE_CALLBACK_URI}${merchantTransactionId}`,
+      mobileNumber: "",
+      paymentInstrument: {
+        type: "PAY_PAGE",
+      },
+    };
+    const encode = btoa(JSON.stringify(data));
+    const saltKey = process.env.PHONEPE_SALTKEY;
+    const saltIndex = 1;
+
+    const encodedData = encode + "/pg/v1/pay" + saltKey;
+    const hash = crypto.createHash("sha256");
+    //Pass the original data to be hashed
+    const originalValue = hash.update(encodedData, "utf-8");
+    //Creating the hash value in the specific format
+    const hashValue = originalValue.digest("hex");
+    const sha256 = hashValue + "###" + saltIndex;
+
+    const options = {
+      method: "POST",
+      url: process.env.PHONEPE_API,
+      data: { request: encode },
+      headers: { "x-verify": sha256, "Content-Type": "application/json" },
+    };
+
+    const result = await axios
+      .request(options)
+      .then(function (response: any) {
+        return response.data;
+      })
+      .catch(function (error: any) {
+        console.log(error);
+      });
+
+    sendResponse(response, 200, "Success", "Payment Initiated", result);
+    console.log(result);
+  }
+);
+
+const paymentStatus = async (request: Request, response: Response) => {
+  const { merchantTransactionId } = request.params;
+
+  if (!merchantTransactionId) {
+    console.log("no transaction id found");
+  }
+  // if (!TransactionId) { throw constants.TRANSACTIONID_NOT_RECEIVED; }
+  // if (!paymentInstrument) { throw constants.PAYMENT_INSTRUMENT_NOT_RECEIVED; }
+
+  const saltKey = process.env.PHONEPE_SALTKEY;
+
+  const saltIndex = process.env.PHONEPE_SALTINDEX;
+
+  const encodeData =
+    "/pg/v1/status/" +
+    process.env.PHONEPE_MERCHANTID +
+    "/" +
+    merchantTransactionId +
+    saltKey;
+
+  const hash = crypto.createHash("sha256");
+
+  //Pass the original data to be hashed
+  const originalValue = hash.update(encodeData, "utf-8");
+
+  //Creating the hash value in the specific format
+  const hashValue = originalValue.digest("hex");
+
+  const sha256 = hashValue + "###" + saltIndex;
+
+  const options = {
+    method: "GET",
+    url: `${process.env.PHONEPE_CHECKSTATUS_API}${process.env.PHONEPE_MERCHANTID}/${merchantTransactionId}`,
+    headers: {
+      accept: "application/json",
+      "Content-Type": "application/json",
+      "x-verify": sha256,
+      "X-MERCHANT-ID": process.env.PHONEPE_MERCHANTID,
+    },
+  };
+
+  const phonepeData: any = await axios
+    .request(options)
+    .then(function (response: any) {
+      return response.data;
+    })
+    .catch(function (error: any) {
+      console.error(error);
+    });
+
+  if (phonepeData.code !== "PAYMENT_SUCCESS" || phonepeData.success !== true) {
+    throw new AppError(phonepeData.message, 400);
+  }
+  sendResponse(response, 200, "success", phonepeData.message, phonepeData.data);
+};
 
 const authenticateToken = catchAsync(
   async (
@@ -317,4 +446,6 @@ export {
   getAirportsByCode,
   getAirportsList,
   ssr,
+  createPayment,
+  paymentStatus,
 };

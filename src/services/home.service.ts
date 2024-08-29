@@ -12,6 +12,7 @@ import {
   SSRFlightData,
 } from "../interface/home.interface";
 import { AppError } from "../utils/appError";
+import { sendResponse } from "../utils/responseUtils";
 import { sendApiRequest } from "../utils/requestAPI";
 import { constants } from "../constants/home.constants";
 import { Airport } from "../models/airport";
@@ -133,7 +134,7 @@ const searchFlights = async (
   request: Request,
   response: Response,
   next: NextFunction
-): Promise<Root[]> => {
+): Promise<SelectedFareQuote[]> => {
   try {
     let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
     if (!AuthData) {
@@ -445,27 +446,21 @@ const getSSR = async (
       ResultIndex: ResultIndex.toString(),
     };
 
-    const options = {
-      method: "POST",
-      url: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/SSR",
-      headers: {
-        "content-type": "application/json",
-      },
-      data: requestBody,
-    };
-
     let apiResponse: any;
     try {
-      // Send request and get response
-      apiResponse = await axios(options);
-      console.log("TBO API Response:", apiResponse?.data?.Response?.Results);
+      apiResponse = await sendApiRequest({
+        url: constants.API_URLS.SSR,
+        data: requestBody,
+      });
+      console.log(apiResponse);
     } catch (err: any) {
       console.error(
         "Error Response:",
         err.response ? err.response.data : err.message
       );
-      throw new AppError(constants.ERROR_MSG.FARE_QUOTE_FETCH_FAILED, 500);
+      throw new AppError(constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
     }
+
     const result: SSRFlightData = {
       Meal: apiResponse?.data?.Response.Meal,
       SeatDynamic: apiResponse?.data?.Response.SeatDynamic,
@@ -562,115 +557,93 @@ const getSourceParameter = async (type: string): Promise<string[]> => {
   return constants.SOURCES[type] || [];
 };
 
-const generateTransactionId = () => {
-  const timestamp = Date.now();
-  const randomNum = Math.floor(Math.random() * 1000000);
-  return `HS-${timestamp}${randomNum}`;
-};
 
-const objectId = () => {
-  const secondInHex = Math.floor(new Date().getTime() / 1000).toString(16);
-  const machineId = crypto
-    .createHash("md5")
-    .update(os.hostname())
-    .digest("hex")
-    .slice(0, 6);
-  const processId = process.pid.toString(16).slice(0, 4).padStart(4, "0");
-  const counter = process.hrtime()[1].toString(16).slice(0, 6).padStart(6, "0");
 
-  return secondInHex + machineId + processId + counter;
-};
-const createPayment = async (response: Response): Promise<void> => {
-  try {
-    const merchantTransactionId = generateTransactionId();
-    const data = {
-      merchantId: "PGTESTPAYUAT",
-      merchantTransactionId,
-      merchantUserId: objectId(), //changes
-      amount: 100 * 100,
-      callbackUrl: `http://localhost:8000/fwu/api/v1/home/payment/validate/${merchantTransactionId}`,
-      redirectUrl: `http://localhost:8000/fwu/api/v1/home/payment/validate/${merchantTransactionId}`,
-      redirectMode: "POST",
-      mobileNumber: "9999999999", // user phone no
-      paymentInstrument: {
-        type: "PAY_PAGE",
-      },
-    };
-    const key = "	099eb0cd-02cf-4e2a-8aca-3e6c6aff0399"; //flewwithus
-    const payload = JSON.stringify(data);
-    console.log(data, payload);
-    const payloadMain = Buffer.from(payload, "utf-8").toString("base64");
-    console.log("payload", payloadMain);
+// const paymentStatus = async (request: Request, response: Response) => {
+//   const { merchantTransactionId } = request.params;
+//   // check the status of the payment using merchantTransactionId
+//   if (merchantTransactionId) {
+//     let statusUrl =
+//       `https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/status/PGTESTPAYUAT/` +
+//       merchantTransactionId;
 
-    let keyIndex = 1;
-    const string = payloadMain + "/pg/v1/pay" + key;
-    const sha256 = crypto.createHash("sha256").update(string).digest("hex");
-    const checksum = sha256 + "###" + keyIndex; // changes
+//     // generate X-VERIFY
+//     let string =
+//       `/pg/v1/status/PGTESTPAYUAT/` +
+//       merchantTransactionId +
+//       "099eb0cd-02cf-4e2a-8aca-3e6c6aff0399";
+//     let sha256_val = sha256(string);
+//     let xVerifyChecksum = sha256_val + "###" + 1;
 
-    console.log("checksum", checksum);
-    console.log("payloadMain", payloadMain);
-    const options = {
-      method: "post",
-      url: "https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay",
-      headers: { "x-verify": checksum, "Content-Type": "application/json" },
-      data: { payloadMain },
-    };
-    axios
-      .request(options)
-      .then(function (res) {
-        console.log(res.data);
-        //response.redirect(res.data.data.instrumentResponse.redirectInfo.url);
-      })
-      .catch(function (error) {
-        console.error(error);
-      });
-  } catch (error) {
-    console.log(error);
-  }
-};
+//     axios
+//       .get(statusUrl, {
+//         headers: {
+//           "Content-Type": "application/json",
+//           "X-VERIFY": xVerifyChecksum,
+//           "X-MERCHANT-ID": merchantTransactionId,
+//           accept: "application/json",
+//         },
+//       })
+//       .then(function (res) {
+//         console.log("response->", res.data);
+//         if (res.data && res.data.code === "PAYMENT_SUCCESS") {
+//           // redirect to FE payment success status page
+//           response.send(res.data);
+//         } else {
+//           // redirect to FE payment failure / pending status page
+//         }
+//       })
+//       .catch(function (error) {
+//         // redirect to FE payment failure / pending status page
+//         response.send(error);
+//       });
+//   } else {
+//     response.send("Sorry!! Error");
+//   }
+// };
 
-const paymentStatus = async (request: Request, response: Response) => {
-  const { merchantTransactionId } = request.params;
-  // check the status of the payment using merchantTransactionId
-  if (merchantTransactionId) {
-    let statusUrl =
-      `https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/status/PGTESTPAYUAT/` +
-      merchantTransactionId;
+// const paymentStatus = async (request: Request, response: Response) => {
+//   const { merchantTransactionId } = request.params;
+//   // check the status of the payment using merchantTransactionId
+//   if (merchantTransactionId) {
+//     let statusUrl =
+//       `https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/status/PGTESTPAYUAT/` +
+//       merchantTransactionId;
 
-    // generate X-VERIFY
-    let string =
-      `/pg/v1/status/PGTESTPAYUAT/` +
-      merchantTransactionId +
-      "099eb0cd-02cf-4e2a-8aca-3e6c6aff0399";
-    let sha256_val = sha256(string);
-    let xVerifyChecksum = sha256_val + "###" + 1;
+//     // generate X-VERIFY
+//     let string =
+//       `/pg/v1/status/PGTESTPAYUAT/` +
+//       merchantTransactionId +
+//       "099eb0cd-02cf-4e2a-8aca-3e6c6aff0399";
+//     let sha256_val = sha256(string);
+//     let xVerifyChecksum = sha256_val + "###" + 1;
 
-    axios
-      .get(statusUrl, {
-        headers: {
-          "Content-Type": "application/json",
-          "X-VERIFY": xVerifyChecksum,
-          "X-MERCHANT-ID": merchantTransactionId,
-          accept: "application/json",
-        },
-      })
-      .then(function (res) {
-        console.log("response->", res.data);
-        if (res.data && res.data.code === "PAYMENT_SUCCESS") {
-          // redirect to FE payment success status page
-          response.send(res.data);
-        } else {
-          // redirect to FE payment failure / pending status page
-        }
-      })
-      .catch(function (error) {
-        // redirect to FE payment failure / pending status page
-        response.send(error);
-      });
-  } else {
-    response.send("Sorry!! Error");
-  }
-};
+//     axios
+//       .get(statusUrl, {
+//         headers: {
+//           "Content-Type": "application/json",
+//           "X-VERIFY": xVerifyChecksum,
+//           "X-MERCHANT-ID": merchantTransactionId,
+//           accept: "application/json",
+//         },
+//       })
+//       .then(function (res) {
+//         console.log("response->", res.data);
+//         if (res.data && res.data.code === "PAYMENT_SUCCESS") {
+//           // redirect to FE payment success status page
+//           sendResponse(response, 400, "Success", "returnObj.message", res.data);
+//         } else {
+//           // redirect to FE payment failure / pending status page
+//         }
+//       })
+//       .catch(function (error) {
+//         // redirect to FE payment failure / pending status page
+//         throw new AppError(error, 400);
+//       });
+//   } else {
+//     throw new AppError("Sorry", 400);
+//   }
+// };
 
 export {
   getAirportByCode,
@@ -681,6 +654,4 @@ export {
   authenticate,
   getFareRule,
   getSSR,
-  createPayment,
-  paymentStatus,
 };

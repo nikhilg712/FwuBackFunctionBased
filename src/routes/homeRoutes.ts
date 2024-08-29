@@ -8,8 +8,9 @@ import {
   getAirportsByCode,
   getAirportsList,
   ssr,
+  createPayment,
+  paymentStatus
 } from "../controllers/homeController";
-import { createPayment, paymentStatus } from "../services/home.service";
 import { isAuthenticated } from "../middleware/authenticate";
 
 const homeRouter = Router();
