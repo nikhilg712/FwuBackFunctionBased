@@ -637,11 +637,6 @@ const ticketNonLCC = async (
   next: NextFunction
 ) => {
   try {
-    const { ResultIndex } = request.query;
-
-    if (!ResultIndex) {
-      throw new AppError("ResultIndex is required", 400);
-    }
     const merchantTransactionId = request.query.merchantTransactionId;
     const booking = await Booking.findOne({ BookingId: merchantTransactionId });
     let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
