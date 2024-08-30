@@ -616,6 +616,7 @@ const getBooking = async (
         userId,
         NetPayable,
         ...apiResponse.data.Response.Response,
+        ResultIndex
       });
 
       await booking.save();

@@ -148,11 +148,16 @@ export interface BookingDocument extends Document {
   FlightItinerary: FlightItinerary;
   PaymentStatus: string;
   NetPayable:number;
+  ResultIndex:string;
 }
 
 const BookingSchema: Schema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: "User" },
   PNR: {
+    type: String,
+    required: true,
+  },
+  ResultIndex:{
     type: String,
     required: true,
   },
