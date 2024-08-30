@@ -609,8 +609,12 @@ const getBooking = async (
     console.log(userId);
 
     if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      const responseData = apiResponse.data.Response.Response.FlightItinerary.Fare;
+      const TDS = responseData.TdsOnCommission + responseData.TdsOnPLB+responseData.TdsOnIncentive
+      const NetPayable =  responseData.OfferedFare +TDS
       const booking = new Booking({
         userId,
+        NetPayable,
         ...apiResponse.data.Response.Response,
       });
 
@@ -633,8 +637,8 @@ const ticketNonLCC = async (
     if (!ResultIndex) {
       throw new AppError("ResultIndex is required", 400);
     }
-    const { PNR } = request.params;
-    const booking = await Booking.findById(PNR);
+    const { PNR } = request.query;
+    const booking = await Booking.findOne({ PNR });
     let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
     if (!AuthData) {
       await authenticate(request, response, next);
@@ -668,6 +672,7 @@ const ticketNonLCC = async (
     //   "/BookingEngineService_Air/AirService.svc/rest/Ticket",
     //   requestBody
     // );
+
     let apiResponse: any;
     try {
       apiResponse = await sendApiRequest({
@@ -714,7 +719,7 @@ const getBookingDetails = async (
       throw new AppError("Authentication failed. No token found.", 500);
     }
 
-    const booking = await Booking.findById(PNR);
+    const booking = await Booking.findOne({PNR});
     if (!booking) {
       throw new AppError("Booking Not found.", 400);
     }

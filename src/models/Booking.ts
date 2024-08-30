@@ -137,6 +137,7 @@ interface FlightItinerary {
 // Main booking schema
 export interface BookingDocument extends Document {
   userId: Schema.Types.ObjectId; // Reference to User model
+  TransactionID: Schema.Types.ObjectId;
   PNR: string;
   BookingId: number;
   SSRDenied: boolean;
@@ -145,6 +146,8 @@ export interface BookingDocument extends Document {
   IsPriceChanged: boolean;
   IsTimeChanged: boolean;
   FlightItinerary: FlightItinerary;
+  PaymentStatus: string;
+  NetPayable:number;
 }
 
 const BookingSchema: Schema = new Schema({
@@ -152,6 +155,11 @@ const BookingSchema: Schema = new Schema({
   PNR: {
     type: String,
     required: true,
+  },
+  TransactionID: {
+    type: Schema.Types.ObjectId,
+    ref: "Transaction",
+    default:null
   },
   BookingId: {
     type: Number,
@@ -177,6 +185,8 @@ const BookingSchema: Schema = new Schema({
     type: Boolean,
     default: false,
   },
+  PaymentStatus: { type: String, default: "Initiated" },
+  NetPayable:{ type: Number },
   FlightItinerary: {
     JourneyType: { type: Number },
     SearchCombinationType: { type: Number },
