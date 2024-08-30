@@ -35,6 +35,7 @@ import crypto from "crypto";
 import { Buffer } from "buffer";
 import os from "os";
 import axios from "axios";
+import { Booking } from "../models/Booking";
 
 const getCountryList = catchAsync(
   async (
@@ -281,24 +282,24 @@ const ssr = catchAsync(
     );
   }
 );
-const generateTransactionId = () => {
-  const timestamp = Date.now();
-  const randomNum = Math.floor(Math.random() * 1000000);
-  return `HS-${timestamp}${randomNum}`;
-};
+// const generateTransactionId = () => {
+//   const timestamp = Date.now();
+//   const randomNum = Math.floor(Math.random() * 1000000);
+//   return `HS-${timestamp}${randomNum}`;
+// };
 
-const objectId = () => {
-  const secondInHex = Math.floor(new Date().getTime() / 1000).toString(16);
-  const machineId = crypto
-    .createHash("md5")
-    .update(os.hostname())
-    .digest("hex")
-    .slice(0, 6);
-  const processId = process.pid.toString(16).slice(0, 4).padStart(4, "0");
-  const counter = process.hrtime()[1].toString(16).slice(0, 6).padStart(6, "0");
+// const objectId = () => {
+//   const secondInHex = Math.floor(new Date().getTime() / 1000).toString(16);
+//   const machineId = crypto
+//     .createHash("md5")
+//     .update(os.hostname())
+//     .digest("hex")
+//     .slice(0, 6);
+//   const processId = process.pid.toString(16).slice(0, 4).padStart(4, "0");
+//   const counter = process.hrtime()[1].toString(16).slice(0, 6).padStart(6, "0");
 
-  return secondInHex + machineId + processId + counter;
-};
+//   return secondInHex + machineId + processId + counter;
+// };
 
 const createPayment = catchAsync(
   async (
@@ -306,11 +307,21 @@ const createPayment = catchAsync(
     response: Response,
     next: NextFunction
   ): Promise<void> => {
-    const merchantTransactionId = generateTransactionId();
+    const { ResultIndex } = request.query;
+
+    if (!ResultIndex) {
+      throw new AppError("ResultIndex is required", 400);
+    }
+    const user = request.user as { id: string };
+    const userId = user.id;
+    const { PNR } = request.query;
+    const booking = await Booking.findOne({ PNR });
+    console.log("Net Payable Amount:", booking?.NetPayable!);
+    const merchantTransactionId = booking?.BookingId;
     const data = {
       merchantId: process.env.PHONEPE_MERCHANTID,
       merchantTransactionId,
-      merchantUserId: objectId(),
+      merchantUserId: userId,
       amount: 1 * 100,
       redirectUrl: `${process.env.PHONEPE_REDIRECT_URI}${merchantTransactionId}`,
       redirectMode: "REDIRECT",
@@ -359,11 +370,19 @@ const paymentStatus = catchAsync(
     response: Response,
     next: NextFunction
   ): Promise<void> => {
+    const returnObj: any = {
+      data: [],
+      flag: true,
+      type: "",
+      message: "",
+    };
     const { merchantTransactionId } = request.params;
 
     if (!merchantTransactionId) {
       throw new AppError(constants.TRANSACTIONID_NOT_FOUND, 400);
     }
+
+    const booking = await Booking.findOne({ BookingId: merchantTransactionId });
     // if (!TransactionId) { throw constants.TRANSACTIONID_NOT_RECEIVED; }
     // if (!paymentInstrument) { throw constants.PAYMENT_INSTRUMENT_NOT_RECEIVED; }
 
@@ -413,13 +432,22 @@ const paymentStatus = catchAsync(
       phonepeData.success !== true
     ) {
       throw new AppError(phonepeData.message, 400);
+    } else {
+      const booking: any = await ticketNonLCC(request, response, next);
+      returnObj.data = booking;
+      returnObj.message = "Booking fetched successfully";
+
+      if (!booking) {
+        returnObj.flag = false;
+        returnObj.message = constants.TICKET_ERROR;
+      }
     }
     sendResponse(
       response,
-      200,
-      "success",
-      phonepeData.message,
-      phonepeData.data
+      returnObj.flag ? 200 : 400,
+      returnObj.flag ? "Success" : "Failure",
+      returnObj.message,
+      returnObj.data
     );
   }
 );

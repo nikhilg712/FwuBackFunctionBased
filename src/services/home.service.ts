@@ -609,14 +609,18 @@ const getBooking = async (
     console.log(userId);
 
     if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
-      const responseData = apiResponse.data.Response.Response.FlightItinerary.Fare;
-      const TDS = responseData.TdsOnCommission + responseData.TdsOnPLB+responseData.TdsOnIncentive
-      const NetPayable =  responseData.OfferedFare +TDS
+      const responseData =
+        apiResponse.data.Response.Response.FlightItinerary.Fare;
+      const TDS =
+        responseData.TdsOnCommission +
+        responseData.TdsOnPLB +
+        responseData.TdsOnIncentive;
+      const NetPayable = responseData.OfferedFare + TDS;
       const booking = new Booking({
         userId,
         NetPayable,
         ...apiResponse.data.Response.Response,
-        ResultIndex
+        ResultIndex,
       });
 
       await booking.save();
@@ -638,8 +642,8 @@ const ticketNonLCC = async (
     if (!ResultIndex) {
       throw new AppError("ResultIndex is required", 400);
     }
-    const { PNR } = request.query;
-    const booking = await Booking.findOne({ PNR });
+    const merchantTransactionId = request.query.merchantTransactionId;
+    const booking = await Booking.findOne({ BookingId: merchantTransactionId });
     let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
     if (!AuthData) {
       await authenticate(request, response, next);
@@ -653,8 +657,8 @@ const ticketNonLCC = async (
       EndUserIp: await getClientIp(request, response, next),
       TokenId: AuthData.tokenId,
       TraceId: request.cookies.tekTravelsTraceId,
-      ResultIndex: ResultIndex.toString(),
-      PNR: PNR,
+      ResultIndex: booking?.ResultIndex.toString(),
+      PNR: booking?.PNR,
       BookingId: booking?.BookingId,
       Passport: booking?.FlightItinerary?.Passenger?.map(
         ({ PaxId, PassportNo, PassportExpiry, DateOfBirth }) => ({
@@ -720,7 +724,7 @@ const getBookingDetails = async (
       throw new AppError("Authentication failed. No token found.", 500);
     }
 
-    const booking = await Booking.findOne({PNR});
+    const booking = await Booking.findOne({ PNR });
     if (!booking) {
       throw new AppError("Booking Not found.", 400);
     }
