@@ -22,6 +22,8 @@ import {
   getFareQuote,
   getSSR,
   getBooking,
+  getBookingDetails,
+  ticketNonLCC,
 } from "../services/home.service";
 import {
   FlightResponseType,
@@ -467,15 +469,78 @@ const booking = catchAsync(
     };
 
     // Call the getfareQuote service method
-    
-      const booking: any = await getBooking(request, response, next);
-      returnObj.data = booking;
-      returnObj.message = "Booking fetched successfully";
 
+    const booking: any = await getBooking(request, response, next);
+    returnObj.data = booking;
+    returnObj.message = "Booking fetched successfully";
 
     if (!booking) {
       returnObj.flag = false;
       returnObj.message = constants.BOOKING_FAILED_FOR_NONLCC;
+    }
+
+    sendResponse(
+      response,
+      returnObj.flag ? 200 : 400,
+      returnObj.flag ? "Success" : "Failure",
+      returnObj.message,
+      returnObj.data
+    );
+  }
+);
+
+const ticket = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: any = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+    const booking: any = await ticketNonLCC(request, response, next);
+    returnObj.data = booking;
+    returnObj.message = "Booking fetched successfully";
+
+    if (!booking) {
+      returnObj.flag = false;
+      returnObj.message = constants.TICKET_ERROR;
+    }
+
+    sendResponse(
+      response,
+      returnObj.flag ? 200 : 400,
+      returnObj.flag ? "Success" : "Failure",
+      returnObj.message,
+      returnObj.data
+    );
+  }
+);
+const bookingDetails = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: any = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    // Call the getfareQuote service method
+
+    const booking: any = await getBookingDetails(request, response, next);
+    returnObj.data = booking;
+    returnObj.message = "Booking fetched successfully";
+
+    if (!booking) {
+      returnObj.flag = false;
+      returnObj.message = constants.GET_BOOKING_FAILED;
     }
 
     sendResponse(
@@ -499,4 +564,6 @@ export {
   createPayment,
   paymentStatus,
   booking,
+  bookingDetails,
+  ticket,
 };

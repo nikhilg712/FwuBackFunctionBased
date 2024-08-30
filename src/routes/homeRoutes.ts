@@ -11,6 +11,8 @@ import {
   createPayment,
   paymentStatus,
   booking,
+  bookingDetails,
+  ticket,
 } from "../controllers/homeController";
 import { isAuthenticated } from "../middleware/authenticate";
 
@@ -29,8 +31,9 @@ const initializeRoutes = (router: Router) => {
   router.get(`${path}ssr`, ssr);
   router.get(`${path}pay`, createPayment);
   router.get(`${path}payment/validate/:merchantTransactionId`, paymentStatus);
-  router.get(`${path}booking`,isAuthenticated, booking);
-
+  router.get(`${path}booking`, isAuthenticated, booking);
+  router.get(`${path}bookingDetails`, bookingDetails);
+  router.get(`${path}ticketNonLCC`, ticket);
   /* *****POST******
         ==============================================*/
 

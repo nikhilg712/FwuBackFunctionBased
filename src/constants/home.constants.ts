@@ -20,9 +20,11 @@ export const constants = {
     FARE_RULES: `${MAIN_URL}FareRule`,
     FARE_QUOTE: `${MAIN_URL}FareQuote`,
     SSR: `${MAIN_URL}SSR`,
+    GET_BOOKING_DETAILS: `${MAIN_URL}GetBookingDetails`,
+    TICKET: `${MAIN_URL}ticket`,
     AUTHENTICATE:
       "https://api.tektravels.com/SharedServices/SharedData.svc/rest/Authenticate",
-    BOOKING:`${MAIN_URL}Book`,
+    BOOKING: `${MAIN_URL}Book`,
   },
   ERROR_TYPE: {
     ERROR: "ERROR",
@@ -40,6 +42,8 @@ export const constants = {
   FARE_RULE_ERROR: "An error occurred while fetching the fareRule.",
   FARE_QUOTE_ERROR: "An error occurred while fetching the fareQuote.",
   BOOKING_FAILED_FOR_NONLCC: "An error occurred while booking the flight.",
+  GET_BOOKING_FAILED: "An error occurred while fetching booking details.",
+  TICKET_ERROR: "An error occured while generating ticket.",
   SEARCH_FLIGHT_ERROR: "An error occurred while searching for flights.",
   AIRPORT_BY_CODE_SEARCH_ERROR:
     "An error occurred while fetching the airport list.",
