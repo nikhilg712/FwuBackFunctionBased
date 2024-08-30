@@ -36,6 +36,7 @@ import { Buffer } from "buffer";
 import os from "os";
 import axios from "axios";
 import { Booking } from "../models/Booking";
+import { PaymentResponse } from "../models/Transaction";
 
 const getCountryList = catchAsync(
   async (
@@ -383,6 +384,9 @@ const paymentStatus = catchAsync(
     }
 
     const booking = await Booking.findOne({ BookingId: merchantTransactionId });
+
+    const BookingId = merchantTransactionId;
+
     // if (!TransactionId) { throw constants.TRANSACTIONID_NOT_RECEIVED; }
     // if (!paymentInstrument) { throw constants.PAYMENT_INSTRUMENT_NOT_RECEIVED; }
 
@@ -426,6 +430,17 @@ const paymentStatus = catchAsync(
       .catch(function (error: any) {
         console.error(error);
       });
+      
+    if (booking) {
+      const userId = booking.userId;
+      const transaction = new PaymentResponse({
+        userId,
+        BookingId,
+        ...phonepeData,
+      });
+
+      await transaction.save();
+    }
 
     if (
       phonepeData.code !== "PAYMENT_SUCCESS" ||
@@ -433,11 +448,14 @@ const paymentStatus = catchAsync(
     ) {
       throw new AppError(phonepeData.message, 400);
     } else {
-      const booking: any = await ticketNonLCC(request, response, next);
-      returnObj.data = booking;
-      returnObj.message = "Booking fetched successfully";
+      if (booking) {
+        booking.PaymentStatus = "Success";
+      }
+      const bookingNonLCC: any = await ticketNonLCC(request, response, next);
+      returnObj.data = bookingNonLCC;
+      returnObj.message = "Ticket fetched successfully";
 
-      if (!booking) {
+      if (!bookingNonLCC) {
         returnObj.flag = false;
         returnObj.message = constants.TICKET_ERROR;
       }

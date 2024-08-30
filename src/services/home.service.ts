@@ -23,6 +23,8 @@ import { Buffer } from "buffer";
 import fs from "fs/promises";
 import os from "os";
 import sha256 from "sha256";
+import { sendEmail } from "../services/user.service";
+import { ticketTemplate } from "../views/ticket-template";
 
 const getAirportList = async (
   Start: number,
@@ -620,7 +622,7 @@ const getBooking = async (
         userId,
         NetPayable,
         ResultIndex,
-        ...apiResponse.data.Response.Response
+        ...apiResponse.data.Response.Response,
       });
 
       await booking.save();
@@ -689,7 +691,19 @@ const ticketNonLCC = async (
     }
 
     if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
-      
+      if (booking) {
+        const ticketResponse = apiResponse.data.Response.Response;
+        const template = ticketTemplate(
+          ticketResponse.BookingId,
+          ticketResponse.PNR,
+          ticketResponse.FlightItinerary.Passenger[0].FirstName,
+          ticketResponse.FlightItinerary.Origin,
+          ticketResponse.FlightItinerary.Destination
+        );
+        const email = booking.FlightItinerary.Passenger[0].Email;
+        await sendEmail(email, template, "Ticket Confirmed");
+      }
+
       return { data: apiResponse.data };
     }
   } catch (err: any) {
