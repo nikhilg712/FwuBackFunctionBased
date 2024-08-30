@@ -619,8 +619,8 @@ const getBooking = async (
       const booking = new Booking({
         userId,
         NetPayable,
-        ...apiResponse.data.Response.Response,
         ResultIndex,
+        ...apiResponse.data.Response.Response
       });
 
       await booking.save();
@@ -637,7 +637,7 @@ const ticketNonLCC = async (
   next: NextFunction
 ) => {
   try {
-    const merchantTransactionId = request.query.merchantTransactionId;
+    const merchantTransactionId = +request.params.merchantTransactionId;
     const booking = await Booking.findOne({ BookingId: merchantTransactionId });
     let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
     if (!AuthData) {
@@ -689,6 +689,7 @@ const ticketNonLCC = async (
     }
 
     if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      
       return { data: apiResponse.data };
     }
   } catch (err: any) {
