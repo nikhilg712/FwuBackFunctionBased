@@ -5,50 +5,58 @@ import passport from "passport";
 import session from "express-session";
 import initializeRoutes from "./routes/index";
 import dotenv from "dotenv";
-// import { BaseApp } from "@Base";
 import upload from "express-fileupload";
-// import { PassportConfig } from "@Main/middleware/AUTH";
 import cookieParser from "cookie-parser";
 import dbConnection from "./utils/dbConnection";
 import MongoStore from "connect-mongo";
+import fs from "fs";
+import path from "path";
+import { IncomingMessage, ServerResponse } from "http";
 require("./middleware/passport");
 
 // Load environment variables
 dotenv.config();
+
+// Create a writable stream for the combined log file
+const logFilePath = path.join(__dirname, "error.log"); // Change the path as needed
+const logStream = fs.createWriteStream(logFilePath, { flags: "a" });
+
+// Custom Morgan token for error logging
+logger.token("error", (req: IncomingMessage, res: ServerResponse) => {
+  return (res as express.Response).locals.errorMessage || "";
+});
+
 const initializeConfigsAndRoute = async (app: express.Application) => {
-  // Initialize Passport configuration
-  //   new PassportConfig();
+  // Use Morgan to log complete details to a file
+  app.use(
+    logger(
+      ":method :url :status :response-time ms - :res[content-length] :error",
+      {
+        skip: (req, res) => res.statusCode < 400, // Optionally, only log errors
+        stream: logStream, // Log to the file
+      }
+    )
+  );
 
-  // Middleware setup
+  // Also log all requests and errors to the console
+  app.use(
+    logger(
+      ":method :url :status :response-time ms - :res[content-length] :error",
+      {
+        skip: (req, res) => res.statusCode < 400, // Optionally, only log errors
+        stream: process.stderr, // Log errors to stderr
+      }
+    )
+  );
   app.use(logger("dev"));
-
-  // app.use((req, res, next) => {
-  //   res.header("Access-Control-Allow-Origin", "http://localhost:3000"); // Replace with your frontend origin
-  //   res.header("Access-Control-Allow-Credentials", "true");
-  //   res.header(
-  //     "Access-Control-Allow-Headers",
-  //     "Origin, X-Requested-With, Content-Type, Accept"
-  //   );
-  //   res.header(
-  //     "Access-Control-Allow-Methods",
-  //     "GET, POST, PUT, DELETE, OPTIONS"
-  //   );
-  //   next();
-  // });
-
+  // Middleware setup
   app.use(
     cors({
       origin: "http://localhost:3000",
-      // methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-      // allowedHeaders: [
-      //   "Content-Type",
-      //   "Authorization",
-      //   "X-CSRF-Token",
-      //   "X-Requested-With",
-      // ],
       credentials: true,
     })
   );
+
   app.use(upload());
   app.use(express.json({ limit: "6000mb" }));
   app.use(express.urlencoded({ extended: true, limit: "6000mb" }));
@@ -74,6 +82,7 @@ const initializeConfigsAndRoute = async (app: express.Application) => {
       },
     })
   );
+
   app.use(passport.initialize());
   app.use(passport.session());
   app.use(cookieParser());
