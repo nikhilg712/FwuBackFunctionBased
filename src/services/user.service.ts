@@ -17,6 +17,7 @@ import { Client } from "@microsoft/microsoft-graph-client";
 import { constants } from "../constants/user.constants";
 import OTP from "../models/otp";
 import { generateOTPTemplate } from "../views/otp-template";
+import { passwordResetTemplate } from "../views/reset-password-template";
 
 dotenv.config();
 // Twilio configuration
@@ -132,25 +133,7 @@ const createUser = async (userData: IUser): Promise<IUser> => {
   }
 };
 
-/**
- * @function findUserByUsername
- * @description Retrieves user details from the database by username.
- * @param {string} username - The username of the user to retrieve.
- * @returns {Promise<UserType | null>} - A promise that resolves to the user object or null if not found.
- */
-const findUserByUsername = async (username: string): Promise<IUser | null> => {
-  return User.findOne({ username }).exec();
-};
 
-/**
- * @function findUserByEmail
- * @description Retrieves user details from the database by email.
- * @param {string} email - The email of the user to retrieve.
- * @returns {Promise<UserType | null>} - A promise that resolves to the user object or null if not found.
- */
-const findUserByEmail = async (email: string): Promise<IUser | null> => {
-  return User.findOne({ email }).exec();
-};
 
 /**
  * @function validatePassword
@@ -166,15 +149,6 @@ const validatePassword = async (
   return bcrypt.compare(inputPassword, storedPassword);
 };
 
-/**
- * @function findUserById
- * @description Retrieves user details from the database by ID.
- * @param {string} id - The ID of the user to retrieve.
- * @returns {Promise<UserType | null>} - A promise that resolves to the user object or null if not found.
- */
-const findUserById = async (id: string): Promise<IUser | null> => {
-  return User.findById(id).exec();
-};
 
 const sendEmailOtp = async (email: string): Promise<void> => {
   try {
@@ -313,13 +287,6 @@ const createCoTraveller = async (
   return await coTraveler.save();
 };
 
-/**
- * @function updateCoTraveler
- * @description Updates a co-traveler by ID.
- * @param {string} id - The ID of the co-traveler to update.
- * @param {Partial<CoTraveller>} coTravelerData - The co-traveler data to update.
- * @returns {Promise<CoTraveller | null>} - A promise that resolves to the updated co-traveler object or null if not found.
- */
 const updateCoTraveller = async (
   id: string,
   coTravelerData: CoTravellerType
@@ -340,12 +307,6 @@ const updateCoTraveller = async (
   return updatedCoTraveler;
 };
 
-/**
- * @function findCoTravelersByUserId
- * @description Retrieves co-travelers by user ID.
- * @param {string} userId - The ID of the user to retrieve co-travelers for.
- * @returns {Promise<CoTraveller[]>} - A promise that resolves to an array of co-travelers.
- */
 
 const findCoTravellersByUserId = async (
   userId: string
@@ -353,12 +314,6 @@ const findCoTravellersByUserId = async (
   return await CoTraveller.find({ userId }).exec();
 };
 
-/**
- * @function findCoTravelerById
- * @description Retrieves a co-traveler by ID.
- * @param {string} id - The ID of the co-traveler to retrieve.
- * @returns {Promise<CoTraveller | null>} - A promise that resolves to the co-traveler object or null if not found.
- */
 
 const findCoTravellerById = async (
   id: string
@@ -366,12 +321,6 @@ const findCoTravellerById = async (
   return await CoTraveller.findById(id).exec();
 };
 
-/**
- * @function deleteCoTraveler
- * @description Deletes a co-traveler by ID.
- * @param {string} id - The ID of the co-traveler to delete.
- * @returns {Promise<CoTraveller | null>} - A promise that resolves to the deleted co-traveler object or null if not found.
- */
 
 const deleteCoTraveller = async (
   id: string
@@ -407,7 +356,7 @@ const sendEmail = async (
 const forgotPassword = async (email: string): Promise<void> => {
   const user = await User.findOne({ email });
   if (!user) {
-    throw new Error("User doesn't exist");
+    throw new Error(constants.ERROR_MSG.NO_SUCH_USER);
   }
 
   // Generate a reset token
@@ -420,11 +369,9 @@ const forgotPassword = async (email: string): Promise<void> => {
   await user.save();
 
   // Create reset URL
-  const resetUrl = `http://localhost:8000/fwu/api/v1/user/reset-password/?token=${resetToken}`;
-  const htmlContent = `
-    <p>Click the link below to reset your password:</p>
-    <p><a href="${resetUrl}">Click here</a></p>
-  `;
+  
+  const resetUrl = `${constants.URL.RESET_URL}?token=${resetToken}`;
+  const htmlContent = passwordResetTemplate(resetUrl)
   const client = await createClient();
   await client.api("/users/support@flewwithus.com/sendMail").post({
     message: {
@@ -450,7 +397,7 @@ const resetPassword = async (
   confirmPassword: string
 ) => {
   if (newPassword !== confirmPassword) {
-    throw new AppError("Passwords do not match", 400);
+    throw new AppError(constants.ERROR_MSG.PASSWORDS_DO_NOT_MATCH, 400);
   }
 
   const user = await User.findOne({
@@ -459,7 +406,7 @@ const resetPassword = async (
   });
 
   if (!user) {
-    throw new AppError("Invalid or expired token", 400);
+    throw new AppError(constants.ERROR_MSG.INVALID_TOKEN, 400);
   }
 
   // Hash the new password
@@ -480,10 +427,7 @@ const resetPassword = async (
 export {
   sayHello,
   createUser,
-  findUserByUsername,
-  findUserByEmail,
   validatePassword,
-  findUserById,
   signupSchema,
   createAddress,
   sendOtp,

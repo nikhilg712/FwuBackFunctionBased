@@ -1,18 +1,17 @@
 import { NextFunction, Request, Response } from "express";
 import { catchAsync, sendResponse } from "../utils/responseUtils";
-import { UserResponseType } from "../interface/user.interface";
 import {
   emailOTPValidator,
   phoneNumberValidator,
   profileUpdateValidator,
 } from "../utils/validator";
-import { findUserByEmail, sendOtp } from "../services/user.service";
-import { IUser, User } from "../models/users";
+import { sendOtp } from "../services/user.service";
+import { User } from "../models/users";
 import { AppError } from "../utils/appError";
 import bcrypt from "bcrypt";
-import OTP from "../models/otp";
 import passport from "passport";
 import generateSignedUrl from "../middleware/s3";
+import { constants } from "../constants/user.constants";
 
 // For signup with (email + password) or (phone)
 const signup = catchAsync(
@@ -30,10 +29,18 @@ const signup = catchAsync(
       // Validation logic in this strategy
 
       // Validate query params
-      await emailOTPValidator.validate({
-        email: email,
-        password: password,
-      });
+      try{
+        const validation = await emailOTPValidator.validate(
+          {
+            email: email,
+            password: password,
+          }
+        );
+      }
+      catch(err:any){
+        throw new AppError(err.message,500);
+      }
+
       // If we are here, it means validation was successful
       // Handle email
       const existingUser = await User.findOne({
@@ -41,10 +48,7 @@ const signup = catchAsync(
         isVerified: true,
       }).exec();
       if (existingUser) {
-        throw new AppError(
-          "A user with provided email address already exists",
-          400
-        );
+        throw new AppError(constants.ERROR_MSG.EMAIL_ALREADY_EXISTS, 400);
       }
       // Handle password
       const saltRounds = 10;
@@ -62,16 +66,22 @@ const signup = catchAsync(
         response,
         200,
         "Success",
-        "Otp Sent Successfully to email",
+        constants.SUCCESS_MSG.OTP_SENT_TO_EMAIL,
         {}
       );
     }
     // PHONE NUMBER AUTH
     else if (provider === "phone") {
       // Validate query params
-      await phoneNumberValidator.validate({
-        phone: phone,
-      });
+      try{
+        const validation = await phoneNumberValidator.validate({
+          phone: phone,
+        });
+      }
+      catch(err:any){
+        throw new AppError(err.message,500);
+      }
+      
 
       // If we are here, it means validation was successful
 
@@ -81,10 +91,7 @@ const signup = catchAsync(
         isVerified: true,
       }).exec();
       if (existingUser) {
-        throw new AppError(
-          "A user with provided phone number already exists",
-          400
-        );
+        throw new AppError(constants.ERROR_MSG.PHONE_ALREADY_EXISTS, 400);
       }
 
       // Save user to db with isVerified:false in db as default value in model
@@ -99,11 +106,11 @@ const signup = catchAsync(
         response,
         200,
         "Success",
-        "Otp Sent Successfully to phone",
+        constants.SUCCESS_MSG.OTP_SENT_TO_PHONE,
         {}
       );
     } else {
-      throw new AppError("Invalid authentication provider", 400);
+      throw new AppError(constants.ERROR_MSG.INVALID_PROVIDER, 400);
     }
   }
 );
@@ -131,7 +138,7 @@ const verifySignup = catchAsync(
               response,
               200,
               "Success",
-              "login success",
+              constants.SUCCESS_MSG.LOGGED_IN,
               user
             );
           });
@@ -151,14 +158,14 @@ const verifySignup = catchAsync(
               response,
               200,
               "Success",
-              "login success",
+              constants.SUCCESS_MSG.LOGGED_IN,
               user
             );
           });
         }
       )(request, response, next);
     } else {
-      throw new AppError("Invalid OTP Provider", 400);
+      throw new AppError(constants.ERROR_MSG.INVALID_OTP_PROVIDER, 400);
     }
   }
 );
@@ -184,7 +191,7 @@ const login = catchAsync(
               response,
               200,
               "Success",
-              "login success",
+              constants.SUCCESS_MSG.LOGGED_IN,
               user
             );
           });
@@ -197,12 +204,12 @@ const login = catchAsync(
       }).exec();
 
       if (!user) {
-        throw new AppError("No user with provided phone exists", 400);
+        throw new AppError(constants.ERROR_MSG.NO_SUCH_USER, 400);
       }
 
       await sendOtp("phone", null, phone);
     } else {
-      throw new AppError("Invalid provider", 400);
+      throw new AppError(constants.ERROR_MSG.INVALID_PROVIDER, 400);
     }
   }
 );
@@ -224,7 +231,13 @@ const verifyLogin = catchAsync(
 
         request.login(user, (err: unknown) => {
           if (err) return next(err);
-          return sendResponse(response, 200, "Success", "login success", user);
+          return sendResponse(
+            response,
+            200,
+            "Success",
+            constants.SUCCESS_MSG.LOGGED_IN,
+            user
+          );
         });
       }
     )(request, response, next);
@@ -320,7 +333,7 @@ const logout = catchAsync(
           response,
           200,
           "Success",
-          "User LoggedOut Successfully",
+          constants.SUCCESS_MSG.LOGGED_OUT,
           {}
         );
       });
@@ -337,11 +350,18 @@ const updateUser = catchAsync(
   ): Promise<void> => {
     const { _id, username, dateOfBirth, gender } = request.body;
 
-    await profileUpdateValidator.validate({
-      username,
-      dateOfBirth,
-      gender,
-    });
+    try{
+      const validation =    await profileUpdateValidator.validate({
+        username,
+        dateOfBirth,
+        gender,
+      });
+    }
+    catch(err:any){
+      throw new AppError(err.message,500);
+    }
+
+ 
 
     const user = await User.findByIdAndUpdate(
       _id,
