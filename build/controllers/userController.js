@@ -12,6 +12,7 @@ const appError_1 = require("../utils/appError");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const passport_1 = __importDefault(require("passport"));
 const s3_1 = __importDefault(require("../middleware/s3"));
+const user_constants_1 = require("../constants/user.constants");
 // For signup with (email + password) or (phone)
 const signup = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     //await User.deleteMany({}); // For developement purpose only, remove it later!
@@ -20,10 +21,15 @@ const signup = (0, responseUtils_1.catchAsync)(async (request, response, next) =
     if (provider === "email") {
         // Validation logic in this strategy
         // Validate query params
-        await validator_1.emailOTPValidator.validate({
-            email: email,
-            password: password,
-        });
+        try {
+            const validation = await validator_1.emailOTPValidator.validate({
+                email: email,
+                password: password,
+            });
+        }
+        catch (err) {
+            throw new appError_1.AppError(err.message, 500);
+        }
         // If we are here, it means validation was successful
         // Handle email
         const existingUser = await users_1.User.findOne({
@@ -31,7 +37,7 @@ const signup = (0, responseUtils_1.catchAsync)(async (request, response, next) =
             isVerified: true,
         }).exec();
         if (existingUser) {
-            throw new appError_1.AppError("A user with provided email address already exists", 400);
+            throw new appError_1.AppError(user_constants_1.constants.ERROR_MSG.EMAIL_ALREADY_EXISTS, 400);
         }
         // Handle password
         const saltRounds = 10;
@@ -45,14 +51,19 @@ const signup = (0, responseUtils_1.catchAsync)(async (request, response, next) =
         await user.save();
         // Send OTP to email for confirmation
         await (0, user_service_1.sendOtp)("email", email, null);
-        (0, responseUtils_1.sendResponse)(response, 200, "Success", "Otp Sent Successfully to email", {});
+        (0, responseUtils_1.sendResponse)(response, 200, "Success", user_constants_1.constants.SUCCESS_MSG.OTP_SENT_TO_EMAIL, {});
     }
     // PHONE NUMBER AUTH
     else if (provider === "phone") {
         // Validate query params
-        await validator_1.phoneNumberValidator.validate({
-            phone: phone,
-        });
+        try {
+            const validation = await validator_1.phoneNumberValidator.validate({
+                phone: phone,
+            });
+        }
+        catch (err) {
+            throw new appError_1.AppError(err.message, 500);
+        }
         // If we are here, it means validation was successful
         // Handle phone
         const existingUser = await users_1.User.findOne({
@@ -60,7 +71,7 @@ const signup = (0, responseUtils_1.catchAsync)(async (request, response, next) =
             isVerified: true,
         }).exec();
         if (existingUser) {
-            throw new appError_1.AppError("A user with provided phone number already exists", 400);
+            throw new appError_1.AppError(user_constants_1.constants.ERROR_MSG.PHONE_ALREADY_EXISTS, 400);
         }
         // Save user to db with isVerified:false in db as default value in model
         const user = new users_1.User({
@@ -69,10 +80,10 @@ const signup = (0, responseUtils_1.catchAsync)(async (request, response, next) =
         await user.save();
         // Send OTP to phone for confirmation
         await (0, user_service_1.sendOtp)("phone", null, phone);
-        (0, responseUtils_1.sendResponse)(response, 200, "Success", "Otp Sent Successfully to phone", {});
+        (0, responseUtils_1.sendResponse)(response, 200, "Success", user_constants_1.constants.SUCCESS_MSG.OTP_SENT_TO_PHONE, {});
     }
     else {
-        throw new appError_1.AppError("Invalid authentication provider", 400);
+        throw new appError_1.AppError(user_constants_1.constants.ERROR_MSG.INVALID_PROVIDER, 400);
     }
 });
 exports.signup = signup;
@@ -89,7 +100,7 @@ const verifySignup = (0, responseUtils_1.catchAsync)(async (request, response, n
             request.login(user, (err) => {
                 if (err)
                     return next(err);
-                return (0, responseUtils_1.sendResponse)(response, 200, "Success", "login success", user);
+                return (0, responseUtils_1.sendResponse)(response, 200, "Success", user_constants_1.constants.SUCCESS_MSG.LOGGED_IN, user);
             });
         })(request, response, next);
     }
@@ -103,12 +114,12 @@ const verifySignup = (0, responseUtils_1.catchAsync)(async (request, response, n
             request.login(user, (err) => {
                 if (err)
                     return next(err);
-                return (0, responseUtils_1.sendResponse)(response, 200, "Success", "login success", user);
+                return (0, responseUtils_1.sendResponse)(response, 200, "Success", user_constants_1.constants.SUCCESS_MSG.LOGGED_IN, user);
             });
         })(request, response, next);
     }
     else {
-        throw new appError_1.AppError("Invalid OTP Provider", 400);
+        throw new appError_1.AppError(user_constants_1.constants.ERROR_MSG.INVALID_OTP_PROVIDER, 400);
     }
 });
 exports.verifySignup = verifySignup;
@@ -124,7 +135,7 @@ const login = (0, responseUtils_1.catchAsync)(async (request, response, next) =>
             request.login(user, (err) => {
                 if (err)
                     return next(err);
-                return (0, responseUtils_1.sendResponse)(response, 200, "Success", "login success", user);
+                return (0, responseUtils_1.sendResponse)(response, 200, "Success", user_constants_1.constants.SUCCESS_MSG.LOGGED_IN, user);
             });
         })(request, response, next);
     }
@@ -134,12 +145,12 @@ const login = (0, responseUtils_1.catchAsync)(async (request, response, next) =>
             isVerified: true,
         }).exec();
         if (!user) {
-            throw new appError_1.AppError("No user with provided phone exists", 400);
+            throw new appError_1.AppError(user_constants_1.constants.ERROR_MSG.NO_SUCH_USER, 400);
         }
         await (0, user_service_1.sendOtp)("phone", null, phone);
     }
     else {
-        throw new appError_1.AppError("Invalid provider", 400);
+        throw new appError_1.AppError(user_constants_1.constants.ERROR_MSG.INVALID_PROVIDER, 400);
     }
 });
 exports.login = login;
@@ -154,7 +165,7 @@ const verifyLogin = (0, responseUtils_1.catchAsync)(async (request, response, ne
         request.login(user, (err) => {
             if (err)
                 return next(err);
-            return (0, responseUtils_1.sendResponse)(response, 200, "Success", "login success", user);
+            return (0, responseUtils_1.sendResponse)(response, 200, "Success", user_constants_1.constants.SUCCESS_MSG.LOGGED_IN, user);
         });
     })(request, response, next);
 });
@@ -211,7 +222,7 @@ const logout = (0, responseUtils_1.catchAsync)(async (request, response, next) =
                 return next(err);
             }
             response.clearCookie("connect.sid");
-            (0, responseUtils_1.sendResponse)(response, 200, "Success", "User LoggedOut Successfully", {});
+            (0, responseUtils_1.sendResponse)(response, 200, "Success", user_constants_1.constants.SUCCESS_MSG.LOGGED_OUT, {});
         });
     });
 });
@@ -219,11 +230,16 @@ exports.logout = logout;
 // Update user
 const updateUser = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     const { _id, username, dateOfBirth, gender } = request.body;
-    await validator_1.profileUpdateValidator.validate({
-        username,
-        dateOfBirth,
-        gender,
-    });
+    try {
+        const validation = await validator_1.profileUpdateValidator.validate({
+            username,
+            dateOfBirth,
+            gender,
+        });
+    }
+    catch (err) {
+        throw new appError_1.AppError(err.message, 500);
+    }
     const user = await users_1.User.findByIdAndUpdate(_id, {
         username,
         dateOfBirth,

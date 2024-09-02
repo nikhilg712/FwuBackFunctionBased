@@ -10,42 +10,37 @@ const passport_1 = __importDefault(require("passport"));
 const express_session_1 = __importDefault(require("express-session"));
 const index_1 = __importDefault(require("./routes/index"));
 const dotenv_1 = __importDefault(require("dotenv"));
-// import { BaseApp } from "@Base";
 const express_fileupload_1 = __importDefault(require("express-fileupload"));
-// import { PassportConfig } from "@Main/middleware/AUTH";
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const dbConnection_1 = __importDefault(require("./utils/dbConnection"));
 const connect_mongo_1 = __importDefault(require("connect-mongo"));
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 require("./middleware/passport");
 // Load environment variables
 dotenv_1.default.config();
+// Create a writable stream for the combined log file
+const logFilePath = path_1.default.join(__dirname, "error.log"); // Change the path as needed
+const logStream = fs_1.default.createWriteStream(logFilePath, { flags: "a" });
+// Custom Morgan token for error logging
+morgan_1.default.token("error", (req, res) => {
+    return res.locals.errorMessage || "";
+});
 const initializeConfigsAndRoute = async (app) => {
-    // Initialize Passport configuration
-    //   new PassportConfig();
-    // Middleware setup
+    // Use Morgan to log complete details to a file
+    app.use((0, morgan_1.default)(":method :url :status :response-time ms - :res[content-length] :error", {
+        skip: (req, res) => res.statusCode < 400, // Optionally, only log errors
+        stream: logStream, // Log to the file
+    }));
+    // Also log all requests and errors to the console
+    app.use((0, morgan_1.default)(":method :url :status :response-time ms - :res[content-length] :error", {
+        skip: (req, res) => res.statusCode < 400, // Optionally, only log errors
+        stream: process.stderr, // Log errors to stderr
+    }));
     app.use((0, morgan_1.default)("dev"));
-    // app.use((req, res, next) => {
-    //   res.header("Access-Control-Allow-Origin", "http://localhost:3000"); // Replace with your frontend origin
-    //   res.header("Access-Control-Allow-Credentials", "true");
-    //   res.header(
-    //     "Access-Control-Allow-Headers",
-    //     "Origin, X-Requested-With, Content-Type, Accept"
-    //   );
-    //   res.header(
-    //     "Access-Control-Allow-Methods",
-    //     "GET, POST, PUT, DELETE, OPTIONS"
-    //   );
-    //   next();
-    // });
+    // Middleware setup
     app.use((0, cors_1.default)({
         origin: "http://localhost:3000",
-        // methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        // allowedHeaders: [
-        //   "Content-Type",
-        //   "Authorization",
-        //   "X-CSRF-Token",
-        //   "X-Requested-With",
-        // ],
         credentials: true,
     }));
     app.use((0, express_fileupload_1.default)());

@@ -3,12 +3,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getBooking = exports.getSSR = exports.getFareRule = exports.authenticate = exports.searchFlights = exports.getFareQuote = exports.getClientIp = exports.getAirportList = exports.getAirportByCode = void 0;
+exports.ticketLCC = exports.ticketNonLCC = exports.getBookingDetails = exports.getBooking = exports.getSSR = exports.getFareRule = exports.authenticate = exports.searchFlights = exports.getFareQuote = exports.getClientIp = exports.getAirportList = exports.getAirportByCode = void 0;
 const authToken_1 = __importDefault(require("../models/authToken"));
 const appError_1 = require("../utils/appError");
 const requestAPI_1 = require("../utils/requestAPI");
 const home_constants_1 = require("../constants/home.constants");
 const airport_1 = require("../models/airport");
+const Booking_1 = require("../models/Booking");
+const user_service_1 = require("../services/user.service");
+const ticket_template_1 = require("../views/ticket-template");
 const getAirportList = async (Start, End) => {
     try {
         const airports = await airport_1.Airport.find()
@@ -445,11 +448,28 @@ const getBooking = async (request, response, next) => {
                 data: requestBody,
             });
             console.log(apiResponse);
-            return apiResponse.data.Response.Response;
         }
         catch (err) {
             console.error("Error Response:", err.response ? err.response.data : err.message);
             throw new appError_1.AppError(home_constants_1.constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
+        }
+        const user = request.user;
+        const userId = user.id;
+        console.log(userId);
+        if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+            const responseData = apiResponse.data.Response.Response.FlightItinerary.Fare;
+            const TDS = responseData.TdsOnCommission +
+                responseData.TdsOnPLB +
+                responseData.TdsOnIncentive;
+            const NetPayable = responseData.OfferedFare + TDS;
+            const booking = new Booking_1.Booking({
+                userId,
+                NetPayable,
+                ResultIndex,
+                ...apiResponse.data.Response.Response,
+            });
+            await booking.save();
+            return { data: apiResponse.data };
         }
     }
     catch (err) {
@@ -457,3 +477,107 @@ const getBooking = async (request, response, next) => {
     }
 };
 exports.getBooking = getBooking;
+const ticketNonLCC = async (request, response, next) => {
+    try {
+        const merchantTransactionId = +request.params.merchantTransactionId;
+        const booking = await Booking_1.Booking.findOne({ BookingId: merchantTransactionId });
+        let AuthData = await authToken_1.default.findOne().sort({ _id: -1 }).exec();
+        if (!AuthData) {
+            await authenticate(request, response, next);
+            AuthData = await authToken_1.default.findOne().sort({ _id: -1 }).exec();
+        }
+        if (!AuthData) {
+            throw new appError_1.AppError("Authentication failed. No token found.", 500);
+        }
+        const requestBody = {
+            EndUserIp: await getClientIp(request, response, next),
+            TokenId: AuthData.tokenId,
+            TraceId: request.cookies.tekTravelsTraceId,
+            ResultIndex: booking?.ResultIndex.toString(),
+            PNR: booking?.PNR,
+            BookingId: booking?.BookingId,
+            Passport: booking?.FlightItinerary?.Passenger?.map(({ PaxId, PassportNo, PassportExpiry, DateOfBirth }) => ({
+                PaxId,
+                PassportNo,
+                PassportExpiry,
+                DateOfBirth,
+            })),
+        };
+        // booking.ticketRequestBody = requestBody;
+        // await booking.save();
+        // const response = await tekTravelsApi.post(
+        //   "/BookingEngineService_Air/AirService.svc/rest/Ticket",
+        //   requestBody
+        // );
+        let apiResponse;
+        try {
+            apiResponse = await (0, requestAPI_1.sendApiRequest)({
+                url: home_constants_1.constants.API_URLS.TICKET,
+                data: requestBody,
+            });
+            console.log(apiResponse);
+        }
+        catch (err) {
+            console.error("Error Response:", err.response ? err.response.data : err.message);
+            throw new appError_1.AppError(home_constants_1.constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
+        }
+        if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+            if (booking) {
+                const ticketResponse = apiResponse.data.Response.Response;
+                const template = (0, ticket_template_1.ticketTemplate)(ticketResponse.BookingId, ticketResponse.PNR, ticketResponse.FlightItinerary.Passenger[0].FirstName, ticketResponse.FlightItinerary.Origin, ticketResponse.FlightItinerary.Destination);
+                const email = booking.FlightItinerary.Passenger[0].Email;
+                await (0, user_service_1.sendEmail)(email, template, "Ticket Confirmed");
+            }
+            return { data: apiResponse.data };
+        }
+    }
+    catch (err) {
+        throw new appError_1.AppError(err.message, err.statusCode || 500);
+    }
+};
+exports.ticketNonLCC = ticketNonLCC;
+const ticketLCC = async (request, response, next) => { };
+exports.ticketLCC = ticketLCC;
+const getBookingDetails = async (request, response, next) => {
+    try {
+        const { PNR } = request.query;
+        let AuthData = await authToken_1.default.findOne().sort({ _id: -1 }).exec();
+        if (!AuthData) {
+            await authenticate(request, response, next);
+            AuthData = await authToken_1.default.findOne().sort({ _id: -1 }).exec();
+        }
+        if (!AuthData) {
+            throw new appError_1.AppError("Authentication failed. No token found.", 500);
+        }
+        const booking = await Booking_1.Booking.findOne({ PNR });
+        if (!booking) {
+            throw new appError_1.AppError("Booking Not found.", 400);
+        }
+        const requestBody = {
+            EndUserIp: await getClientIp(request, response, next),
+            TokenId: AuthData.tokenId,
+            FirstName: booking?.FlightItinerary?.Passenger?.[0]?.FirstName,
+            LastName: booking?.FlightItinerary?.Passenger?.[0]?.LastName,
+            PNR: PNR,
+        };
+        let apiResponse;
+        try {
+            apiResponse = await (0, requestAPI_1.sendApiRequest)({
+                url: home_constants_1.constants.API_URLS.GET_BOOKING_DETAILS,
+                data: requestBody,
+            });
+            console.log(apiResponse);
+        }
+        catch (err) {
+            console.error("Error Response:", err.response ? err.response.data : err.message);
+            throw new appError_1.AppError(home_constants_1.constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
+        }
+        if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+            return { data: apiResponse.data };
+        }
+    }
+    catch (err) {
+        throw new appError_1.AppError(err.message, err.statusCode || 500);
+    }
+};
+exports.getBookingDetails = getBookingDetails;

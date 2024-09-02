@@ -3,15 +3,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.booking = exports.paymentStatus = exports.createPayment = exports.ssr = exports.getAirportsList = exports.getAirportsByCode = exports.searchFlights = exports.fareRules = exports.fareQuote = exports.authenticateToken = exports.getCountryList = void 0;
+exports.ticket = exports.bookingDetails = exports.booking = exports.paymentStatus = exports.createPayment = exports.ssr = exports.getAirportsList = exports.getAirportsByCode = exports.searchFlights = exports.fareRules = exports.fareQuote = exports.authenticateToken = exports.getCountryList = void 0;
 const responseUtils_1 = require("../utils/responseUtils");
 const country_1 = require("../models/country");
 const home_service_1 = require("../services/home.service");
 const home_constants_1 = require("../constants/home.constants");
 const appError_1 = require("../utils/appError");
 const crypto_1 = __importDefault(require("crypto"));
-const os_1 = __importDefault(require("os"));
 const axios_1 = __importDefault(require("axios"));
+const Booking_1 = require("../models/Booking");
+const Transaction_1 = require("../models/Transaction");
 const getCountryList = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     const returnObj = {
         data: [],
@@ -95,7 +96,7 @@ const searchFlights = (0, responseUtils_1.catchAsync)(async (request, response, 
     }
     returnObj.data = flights;
     returnObj.message = "Flights fetched successfully";
-    (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data[0]);
+    (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data);
 });
 exports.searchFlights = searchFlights;
 const fareRules = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
@@ -153,28 +154,37 @@ const ssr = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data);
 });
 exports.ssr = ssr;
-const generateTransactionId = () => {
-    const timestamp = Date.now();
-    const randomNum = Math.floor(Math.random() * 1000000);
-    return `HS-${timestamp}${randomNum}`;
-};
-const objectId = () => {
-    const secondInHex = Math.floor(new Date().getTime() / 1000).toString(16);
-    const machineId = crypto_1.default
-        .createHash("md5")
-        .update(os_1.default.hostname())
-        .digest("hex")
-        .slice(0, 6);
-    const processId = process.pid.toString(16).slice(0, 4).padStart(4, "0");
-    const counter = process.hrtime()[1].toString(16).slice(0, 6).padStart(6, "0");
-    return secondInHex + machineId + processId + counter;
-};
+// const generateTransactionId = () => {
+//   const timestamp = Date.now();
+//   const randomNum = Math.floor(Math.random() * 1000000);
+//   return `HS-${timestamp}${randomNum}`;
+// };
+// const objectId = () => {
+//   const secondInHex = Math.floor(new Date().getTime() / 1000).toString(16);
+//   const machineId = crypto
+//     .createHash("md5")
+//     .update(os.hostname())
+//     .digest("hex")
+//     .slice(0, 6);
+//   const processId = process.pid.toString(16).slice(0, 4).padStart(4, "0");
+//   const counter = process.hrtime()[1].toString(16).slice(0, 6).padStart(6, "0");
+//   return secondInHex + machineId + processId + counter;
+// };
 const createPayment = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
-    const merchantTransactionId = generateTransactionId();
+    const { ResultIndex } = request.query;
+    if (!ResultIndex) {
+        throw new appError_1.AppError("ResultIndex is required", 400);
+    }
+    const user = request.user;
+    const userId = user.id;
+    const { PNR } = request.query;
+    const booking = await Booking_1.Booking.findOne({ PNR });
+    console.log("Net Payable Amount:", booking?.NetPayable);
+    const merchantTransactionId = booking?.BookingId;
     const data = {
         merchantId: process.env.PHONEPE_MERCHANTID,
         merchantTransactionId,
-        merchantUserId: objectId(),
+        merchantUserId: userId,
         amount: 1 * 100,
         redirectUrl: `${process.env.PHONEPE_REDIRECT_URI}${merchantTransactionId}`,
         redirectMode: "REDIRECT",
@@ -212,11 +222,19 @@ const createPayment = (0, responseUtils_1.catchAsync)(async (request, response, 
     console.log(result);
 });
 exports.createPayment = createPayment;
-const paymentStatus = async (request, response) => {
+const paymentStatus = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
+    const returnObj = {
+        data: [],
+        flag: true,
+        type: "",
+        message: "",
+    };
     const { merchantTransactionId } = request.params;
     if (!merchantTransactionId) {
-        console.log("no transaction id found");
+        throw new appError_1.AppError(home_constants_1.constants.TRANSACTIONID_NOT_FOUND, 400);
     }
+    const booking = await Booking_1.Booking.findOne({ BookingId: merchantTransactionId });
+    const BookingId = merchantTransactionId;
     // if (!TransactionId) { throw constants.TRANSACTIONID_NOT_RECEIVED; }
     // if (!paymentInstrument) { throw constants.PAYMENT_INSTRUMENT_NOT_RECEIVED; }
     const saltKey = process.env.PHONEPE_SALTKEY;
@@ -250,11 +268,33 @@ const paymentStatus = async (request, response) => {
         .catch(function (error) {
         console.error(error);
     });
-    if (phonepeData.code !== "PAYMENT_SUCCESS" || phonepeData.success !== true) {
+    if (booking) {
+        const userId = booking.userId;
+        const transaction = new Transaction_1.PaymentResponse({
+            userId,
+            BookingId,
+            ...phonepeData,
+        });
+        await transaction.save();
+    }
+    if (phonepeData.code !== "PAYMENT_SUCCESS" ||
+        phonepeData.success !== true) {
         throw new appError_1.AppError(phonepeData.message, 400);
     }
-    (0, responseUtils_1.sendResponse)(response, 200, "success", phonepeData.message, phonepeData.data);
-};
+    else {
+        if (booking) {
+            booking.PaymentStatus = "Success";
+        }
+        const bookingNonLCC = await (0, home_service_1.ticketNonLCC)(request, response, next);
+        returnObj.data = bookingNonLCC;
+        returnObj.message = "Ticket fetched successfully";
+        if (!bookingNonLCC) {
+            returnObj.flag = false;
+            returnObj.message = home_constants_1.constants.TICKET_ERROR;
+        }
+    }
+    (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data);
+});
 exports.paymentStatus = paymentStatus;
 const authenticateToken = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     const returnObj = {
@@ -282,7 +322,7 @@ const booking = (0, responseUtils_1.catchAsync)(async (request, response, next) 
     };
     // Call the getfareQuote service method
     const booking = await (0, home_service_1.getBooking)(request, response, next);
-    returnObj.data = ssr;
+    returnObj.data = booking;
     returnObj.message = "Booking fetched successfully";
     if (!booking) {
         returnObj.flag = false;
@@ -291,3 +331,38 @@ const booking = (0, responseUtils_1.catchAsync)(async (request, response, next) 
     (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data);
 });
 exports.booking = booking;
+const ticket = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
+    const returnObj = {
+        data: {},
+        flag: true,
+        type: "",
+        message: "",
+    };
+    const booking = await (0, home_service_1.ticketNonLCC)(request, response, next);
+    returnObj.data = booking;
+    returnObj.message = "Booking fetched successfully";
+    if (!booking) {
+        returnObj.flag = false;
+        returnObj.message = home_constants_1.constants.TICKET_ERROR;
+    }
+    (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data);
+});
+exports.ticket = ticket;
+const bookingDetails = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
+    const returnObj = {
+        data: {},
+        flag: true,
+        type: "",
+        message: "",
+    };
+    // Call the getfareQuote service method
+    const booking = await (0, home_service_1.getBookingDetails)(request, response, next);
+    returnObj.data = booking;
+    returnObj.message = "Booking fetched successfully";
+    if (!booking) {
+        returnObj.flag = false;
+        returnObj.message = home_constants_1.constants.GET_BOOKING_FAILED;
+    }
+    (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data);
+});
+exports.bookingDetails = bookingDetails;

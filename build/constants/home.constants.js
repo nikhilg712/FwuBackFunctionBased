@@ -1,15 +1,19 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.constants = void 0;
+const MAIN_URL = "https://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/";
 // Define constants with the SOURCES type
 exports.constants = {
     API_URLS: {
-        SEARCH_FLIGHTS: "https://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/Search",
-        FARE_RULES: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/FareRule",
-        FARE_QUOTE: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/FareQuote",
+        MAIN_URL,
+        SEARCH_FLIGHTS: `${MAIN_URL}Search`,
+        FARE_RULES: `${MAIN_URL}FareRule`,
+        FARE_QUOTE: `${MAIN_URL}FareQuote`,
+        SSR: `${MAIN_URL}SSR`,
+        GET_BOOKING_DETAILS: `${MAIN_URL}GetBookingDetails`,
+        TICKET: `${MAIN_URL}ticket`,
         AUTHENTICATE: "https://api.tektravels.com/SharedServices/SharedData.svc/rest/Authenticate",
-        SSR: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/SSR",
-        BOOKING: "http://api.tektravels.com/BookingEngineService_Air/AirService.svc/rest/Book",
+        BOOKING: `${MAIN_URL}Book`,
     },
     ERROR_TYPE: {
         ERROR: "ERROR",
@@ -21,11 +25,14 @@ exports.constants = {
         AUTHENTICATION_FAILED: "Authentication Failed",
         SSR_FETCH_FAILED: "SSR Ftech Failed",
     },
+    TRANSACTIONID_NOT_FOUND: "no transaction id found",
     ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND",
     LOCATION: "India",
     FARE_RULE_ERROR: "An error occurred while fetching the fareRule.",
     FARE_QUOTE_ERROR: "An error occurred while fetching the fareQuote.",
     BOOKING_FAILED_FOR_NONLCC: "An error occurred while booking the flight.",
+    GET_BOOKING_FAILED: "An error occurred while fetching booking details.",
+    TICKET_ERROR: "An error occured while generating ticket.",
     SEARCH_FLIGHT_ERROR: "An error occurred while searching for flights.",
     AIRPORT_BY_CODE_SEARCH_ERROR: "An error occurred while fetching the airport list.",
     SOURCES: {

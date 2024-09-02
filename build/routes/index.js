@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const baseRoutes_1 = __importDefault(require("./baseRoutes"));
 const homeRoutes_1 = __importDefault(require("../routes/homeRoutes"));
 const userRoutes_1 = __importDefault(require("../routes/userRoutes"));
+const globalErrorHandler_1 = __importDefault(require("../utils/globalErrorHandler"));
 /**
  * Function to initialize all routes.
  *
@@ -16,5 +17,6 @@ const initializeRoutes = (app) => {
     app.use("/fwu/api/v1/", baseRoutes_1.default);
     app.use("/fwu/api/v1/home/", homeRoutes_1.default);
     app.use("/fwu/api/v1/user/", userRoutes_1.default);
+    app.use(globalErrorHandler_1.default);
 };
 exports.default = initializeRoutes;

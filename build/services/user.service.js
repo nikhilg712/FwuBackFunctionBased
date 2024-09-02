@@ -26,7 +26,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendEmailOtp = exports.sendEmail = exports.deleteCoTraveller = exports.findCoTravellersByUserId = exports.findCoTravellerById = exports.updateCoTraveller = exports.createCoTraveller = exports.resetPassword = exports.forgotPassword = exports.verifyOtp = exports.sendOtp = exports.createAddress = exports.signupSchema = exports.findUserById = exports.validatePassword = exports.findUserByEmail = exports.findUserByUsername = exports.createUser = exports.sayHello = void 0;
+exports.sendEmailOtp = exports.sendEmail = exports.deleteCoTraveller = exports.findCoTravellersByUserId = exports.findCoTravellerById = exports.updateCoTraveller = exports.createCoTraveller = exports.resetPassword = exports.forgotPassword = exports.verifyOtp = exports.sendOtp = exports.createAddress = exports.signupSchema = exports.validatePassword = exports.createUser = exports.sayHello = void 0;
 const users_1 = require("../models/users");
 const cotraveller_1 = require("../models/cotraveller");
 const bcrypt_1 = __importDefault(require("bcrypt"));
@@ -40,6 +40,7 @@ const microsoft_graph_client_1 = require("@microsoft/microsoft-graph-client");
 const user_constants_1 = require("../constants/user.constants");
 const otp_1 = __importDefault(require("../models/otp"));
 const otp_template_1 = require("../views/otp-template");
+const reset_password_template_1 = require("../views/reset-password-template");
 dotenv_1.default.config();
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -148,26 +149,6 @@ const createUser = async (userData) => {
 };
 exports.createUser = createUser;
 /**
- * @function findUserByUsername
- * @description Retrieves user details from the database by username.
- * @param {string} username - The username of the user to retrieve.
- * @returns {Promise<UserType | null>} - A promise that resolves to the user object or null if not found.
- */
-const findUserByUsername = async (username) => {
-    return users_1.User.findOne({ username }).exec();
-};
-exports.findUserByUsername = findUserByUsername;
-/**
- * @function findUserByEmail
- * @description Retrieves user details from the database by email.
- * @param {string} email - The email of the user to retrieve.
- * @returns {Promise<UserType | null>} - A promise that resolves to the user object or null if not found.
- */
-const findUserByEmail = async (email) => {
-    return users_1.User.findOne({ email }).exec();
-};
-exports.findUserByEmail = findUserByEmail;
-/**
  * @function validatePassword
  * @description Validates the password entered by the user with the password stored in the database.
  * @param {string} inputPassword - The password entered by the user.
@@ -178,16 +159,6 @@ const validatePassword = async (inputPassword, storedPassword) => {
     return bcrypt_1.default.compare(inputPassword, storedPassword);
 };
 exports.validatePassword = validatePassword;
-/**
- * @function findUserById
- * @description Retrieves user details from the database by ID.
- * @param {string} id - The ID of the user to retrieve.
- * @returns {Promise<UserType | null>} - A promise that resolves to the user object or null if not found.
- */
-const findUserById = async (id) => {
-    return users_1.User.findById(id).exec();
-};
-exports.findUserById = findUserById;
 const sendEmailOtp = async (email) => {
     try {
         const otpValue = Math.floor(1000 + Math.random() * 9000).toString(); // Generate Random 6 digit number
@@ -313,13 +284,6 @@ const createCoTraveller = async (userId, coTravelerData) => {
     return await coTraveler.save();
 };
 exports.createCoTraveller = createCoTraveller;
-/**
- * @function updateCoTraveler
- * @description Updates a co-traveler by ID.
- * @param {string} id - The ID of the co-traveler to update.
- * @param {Partial<CoTraveller>} coTravelerData - The co-traveler data to update.
- * @returns {Promise<CoTraveller | null>} - A promise that resolves to the updated co-traveler object or null if not found.
- */
 const updateCoTraveller = async (id, coTravelerData) => {
     const updatedCoTraveler = await cotraveller_1.CoTraveller.findByIdAndUpdate(id, coTravelerData, {
         new: true,
@@ -331,32 +295,14 @@ const updateCoTraveller = async (id, coTravelerData) => {
     return updatedCoTraveler;
 };
 exports.updateCoTraveller = updateCoTraveller;
-/**
- * @function findCoTravelersByUserId
- * @description Retrieves co-travelers by user ID.
- * @param {string} userId - The ID of the user to retrieve co-travelers for.
- * @returns {Promise<CoTraveller[]>} - A promise that resolves to an array of co-travelers.
- */
 const findCoTravellersByUserId = async (userId) => {
     return await cotraveller_1.CoTraveller.find({ userId }).exec();
 };
 exports.findCoTravellersByUserId = findCoTravellersByUserId;
-/**
- * @function findCoTravelerById
- * @description Retrieves a co-traveler by ID.
- * @param {string} id - The ID of the co-traveler to retrieve.
- * @returns {Promise<CoTraveller | null>} - A promise that resolves to the co-traveler object or null if not found.
- */
 const findCoTravellerById = async (id) => {
     return await cotraveller_1.CoTraveller.findById(id).exec();
 };
 exports.findCoTravellerById = findCoTravellerById;
-/**
- * @function deleteCoTraveler
- * @description Deletes a co-traveler by ID.
- * @param {string} id - The ID of the co-traveler to delete.
- * @returns {Promise<CoTraveller | null>} - A promise that resolves to the deleted co-traveler object or null if not found.
- */
 const deleteCoTraveller = async (id) => {
     return await cotraveller_1.CoTraveller.findByIdAndDelete(id).exec();
 };
@@ -385,7 +331,7 @@ exports.sendEmail = sendEmail;
 const forgotPassword = async (email) => {
     const user = await users_1.User.findOne({ email });
     if (!user) {
-        throw new Error("User doesn't exist");
+        throw new Error(user_constants_1.constants.ERROR_MSG.NO_SUCH_USER);
     }
     // Generate a reset token
     const resetToken = crypto_1.default.randomBytes(32).toString("hex");
@@ -395,11 +341,8 @@ const forgotPassword = async (email) => {
     user.resetPasswordExpiry = resetTokenExpiry;
     await user.save();
     // Create reset URL
-    const resetUrl = `http://localhost:8000/fwu/api/v1/user/reset-password/?token=${resetToken}`;
-    const htmlContent = `
-    <p>Click the link below to reset your password:</p>
-    <p><a href="${resetUrl}">Click here</a></p>
-  `;
+    const resetUrl = `${user_constants_1.constants.URL.RESET_URL}?token=${resetToken}`;
+    const htmlContent = (0, reset_password_template_1.passwordResetTemplate)(resetUrl);
     const client = await createClient();
     await client.api("/users/support@flewwithus.com/sendMail").post({
         message: {
@@ -421,14 +364,14 @@ const forgotPassword = async (email) => {
 exports.forgotPassword = forgotPassword;
 const resetPassword = async (token, newPassword, confirmPassword) => {
     if (newPassword !== confirmPassword) {
-        throw new appError_1.AppError("Passwords do not match", 400);
+        throw new appError_1.AppError(user_constants_1.constants.ERROR_MSG.PASSWORDS_DO_NOT_MATCH, 400);
     }
     const user = await users_1.User.findOne({
         resetPasswordToken: token,
         resetPasswordExpiry: { $gt: Date.now() },
     });
     if (!user) {
-        throw new appError_1.AppError("Invalid or expired token", 400);
+        throw new appError_1.AppError(user_constants_1.constants.ERROR_MSG.INVALID_TOKEN, 400);
     }
     // Hash the new password
     const salt = await bcrypt_1.default.genSalt(10);

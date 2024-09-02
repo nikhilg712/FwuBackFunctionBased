@@ -43,7 +43,9 @@
     "passport-local": "^1.0.0",
     "serverless-http": "^3.2.0",
     "sha256": "^0.2.0",
-    "yup": "^1.4.0"
+    "yup": "^1.4.0",
+    "passport-custom": "^1.1.1",
+    "twilio": "^5.2.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
@@ -75,24 +77,13 @@
     "eslint-plugin-prettier": "^5.2.1",
     "globals": "^15.9.0",
     "nodemon": "^3.1.4",
-    "passport-custom": "^1.1.1",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
-    "twilio": "^5.2.2",
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.0.1"
   },
   "engines": {
     "node": ">=14.0.0",
     "npm": ">=6.0.0"
-  },
-  "_moduleAliases": {
-    "@App": "build/server",
-    "@Base": "build/main",
-    "@Main": "build/main",
-    "@Modules": "build/modules",
-    "@Routes": "build/routes",
-    "@Types": "build/types",
-    "@Utils": "build/utils"
   }
 }
