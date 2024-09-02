@@ -17,9 +17,14 @@ require("./middleware/passport");
 // Load environment variables
 dotenv.config();
 
-// Create a writable stream for the combined log file
-const logFilePath = path.join(__dirname, "error.log"); // Change the path as needed
-const logStream = fs.createWriteStream(logFilePath, { flags: "a" });
+// Check if the environment allows writing to a file
+const isWritable = process.env.WRITE_LOGS_TO_FILE === "true";
+
+// Create a writable stream for the combined log file if writable
+const logFilePath = isWritable ? path.join("/tmp", "error.log") : null;
+const logStream = isWritable
+  ? fs.createWriteStream(logFilePath!, { flags: "a" })
+  : null;
 
 // Custom Morgan token for error logging
 logger.token("error", (req: IncomingMessage, res: ServerResponse) => {
@@ -27,36 +32,32 @@ logger.token("error", (req: IncomingMessage, res: ServerResponse) => {
 });
 
 const initializeConfigsAndRoute = async (app: express.Application) => {
-  // Use Morgan to log complete details to a file
+  if (logStream) {
+    app.use(
+      logger(
+        ":method :url :status :response-time ms - :res[content-length] :error",
+        {
+          skip: (req, res) => res.statusCode < 400,
+          stream: logStream,
+        }
+      )
+    );
+  }
+
+  // Log errors to stderr
   app.use(
     logger(
       ":method :url :status :response-time ms - :res[content-length] :error",
       {
-        skip: (req, res) => res.statusCode < 400, // Optionally, only log errors
-        stream: logStream, // Log to the file
+        skip: (req, res) => res.statusCode < 400,
+        stream: process.stderr,
       }
     )
   );
 
-  // Also log all requests and errors to the console
-  app.use(
-    logger(
-      ":method :url :status :response-time ms - :res[content-length] :error",
-      {
-        skip: (req, res) => res.statusCode < 400, // Optionally, only log errors
-        stream: process.stderr, // Log errors to stderr
-      }
-    )
-  );
   app.use(logger("dev"));
-  // Middleware setup
-  app.use(
-    cors({
-      origin: "http://localhost:3000",
-      credentials: true,
-    })
-  );
 
+  app.use(cors({ origin: "http://localhost:3000", credentials: true }));
   app.use(upload());
   app.use(express.json({ limit: "6000mb" }));
   app.use(express.urlencoded({ extended: true, limit: "6000mb" }));
@@ -97,14 +98,12 @@ const startServer = async (app: express.Application) => {
   });
 };
 
-// Create and configure the Express app
 const createApp = async () => {
   const app = express();
   await initializeConfigsAndRoute(app);
   return app;
 };
 
-// Start the application
 createApp()
   .then(startServer)
   .catch((error) => {
