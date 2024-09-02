@@ -5,7 +5,6 @@ import {
   AuthTokenResponse,
   FareRule,
   FlightDataType,
-  Root,
   SelectedFareQuote,
   SSRFlightData,
 } from "../interface/home.interface";

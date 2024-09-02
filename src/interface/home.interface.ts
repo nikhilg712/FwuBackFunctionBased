@@ -245,8 +245,7 @@ export interface PenaltyCharges {
   CancellationCharge: string;
 }
 
-export interface FlightDetails {
-  resultIndex: string;
+export interface SegmentDetails {
   airlineName: string;
   airlineCode: string;
   flightNumber: string;
@@ -267,45 +266,18 @@ export interface FlightDetails {
   stopPoint: string;
   stopPointArrivalTime: string | null;
   stopPointDepartureTime: string | null;
-  isLCC: boolean;
-  fare: Fare;
   baggage: string;
   cabinBaggage: string;
   cabinClass:number;
 }
-
-export interface Root {
-  FirstNameFormat: string | null;
-  IsBookableIfSeatNotAvailable: boolean;
-  IsHoldAllowedWithSSR: boolean;
-  IsUpsellAllowed: boolean;
-  LastNameFormat: string | null;
-  ResultIndex: string;
-  Source: number;
-  IsLCC: boolean;
-  IsRefundable: boolean;
-  IsPanRequiredAtBook: boolean;
-  IsPanRequiredAtTicket: boolean;
-  IsPassportRequiredAtBook: boolean;
-  IsPassportRequiredAtTicket: boolean;
-  GSTAllowed: boolean;
-  IsCouponAppilcable: boolean;
-  IsGSTMandatory: boolean;
-  AirlineRemark: string;
-  IsPassportFullDetailRequiredAtBook: boolean;
-  ResultFareType: string;
-  Fare: Fare;
-  FareBreakdown: FareBreakdown[];
-  Segments: Segment[][];
-  LastTicketDate: string;
-  TicketAdvisory: string;
-  FareRules: FareRule[];
-  PenaltyCharges: PenaltyCharges;
-  AirlineCode: string;
-  MiniFareRules: MiniFareRule[][];
-  ValidatingAirline: string;
-  FareClassification: FareClassificationDetails;
+export interface FlightDetails {
+  resultIndex: string;
+  isLCC: boolean;
+  fare: Fare;
+  outBound: SegmentDetails[];
+  inBound: SegmentDetails[];
 }
+
 
 export interface SelectedFareQuote {
   FirstNameFormat: string | null;

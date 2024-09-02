@@ -12,6 +12,7 @@ import {
   SelectedFareQuote,
   Segment,
   FlightDetails,
+  SegmentDetails,
 } from "../interface/home.interface";
 import { CountryModel } from "../models/country";
 import {
@@ -187,38 +188,58 @@ function processFlightSearchResults(
   flights: SelectedFareQuote[][]
 ): FlightDetails[] {
   return flights[0].map((flight) => {
-    const segment: Segment = flight.Segments[0][0];
+    const outBound: SegmentDetails[] = [];
+    const inBound: SegmentDetails[] = [];
+
+    // Iterate over each segment array in the flight.Segments array
+    flight.Segments.forEach((segmentArray: Segment[]) => {
+      segmentArray.forEach((segment: Segment) => {
+        const segmentDetails: SegmentDetails = {
+          airlineName: segment.Airline.AirlineName,
+          airlineCode: segment.Airline.AirlineCode,
+          flightNumber: segment.Airline.FlightNumber,
+          fareClass: segment.Airline.FareClass,
+          noOfSeatAvailable: segment.NoOfSeatAvailable,
+          originAirportCode: segment.Origin.Airport.AirportCode,
+          originAirportName: segment.Origin.Airport.AirportName,
+          originTerminal: segment.Origin.Airport.Terminal,
+          originCityName: segment.Origin.Airport.CityName,
+          destinationAirportCode: segment.Destination.Airport.AirportCode,
+          destinationAirportName: segment.Destination.Airport.AirportName,
+          destinationTerminal: segment.Destination.Airport.Terminal,
+          destinationCityName: segment.Destination.Airport.CityName,
+          departureTime: segment.Origin.DepTime,
+          arrivalTime: segment.Destination.ArrTime,
+          duration: segment.Duration,
+          stopOver: segment.StopOver,
+          stopPoint: segment.StopPoint,
+          stopPointArrivalTime: segment.StopPointArrivalTime,
+          stopPointDepartureTime: segment.StopPointDepartureTime,
+          baggage: segment.Baggage,
+          cabinBaggage: segment.CabinBaggage,
+          cabinClass: segment.CabinClass,
+        };
+
+        if (segment.TripIndicator === 1) {
+          outBound.push(segmentDetails);
+        } else if (segment.TripIndicator === 2) {
+          inBound.push(segmentDetails);
+        }
+      });
+    });
 
     return {
       resultIndex: flight.ResultIndex,
       isLCC: flight.IsLCC,
-      airlineName: segment.Airline.AirlineName,
-      airlineCode: segment.Airline.AirlineCode,
-      flightNumber: segment.Airline.FlightNumber,
-      fareClass: segment.Airline.FareClass,
-      noOfSeatAvailable: segment.NoOfSeatAvailable,
-      originAirportCode: segment.Origin.Airport.AirportCode,
-      originAirportName: segment.Origin.Airport.AirportName,
-      originTerminal: segment.Origin.Airport.Terminal,
-      originCityName: segment.Origin.Airport.CityName,
-      destinationAirportCode: segment.Destination.Airport.AirportCode,
-      destinationAirportName: segment.Destination.Airport.AirportName,
-      destinationTerminal: segment.Destination.Airport.Terminal,
-      destinationCityName: segment.Destination.Airport.CityName,
-      departureTime: segment.Origin.DepTime,
-      arrivalTime: segment.Destination.ArrTime,
-      duration: segment.Duration,
-      stopOver: segment.StopOver,
-      stopPoint: segment.StopPoint,
-      stopPointArrivalTime: segment.StopPointArrivalTime,
-      stopPointDepartureTime: segment.StopPointDepartureTime,
-      baggage: segment.Baggage,
-      cabinBaggage: segment.CabinBaggage,
-      cabinClass: segment.CabinClass,
+      outBound: outBound,
+      inBound: inBound,
       fare: flight.Fare,
     };
   });
 }
+
+
+
 
 const fareRules = catchAsync(
   async (
