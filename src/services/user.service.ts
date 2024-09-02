@@ -107,27 +107,23 @@ const signupSchema = yup.object({
   googleId: yup.string().notRequired(),
 });
 
-/**
- * @function sayHello
- * @description Returns a greeting message.
- * @returns {object} - An object containing the greeting message.
- */
+
 const sayHello = (): { data: string } => ({
   data: "hello",
 });
 
 const createAddress = async (address: IAddress): Promise<IAddress[]> => {
-  const addressResponse = await Address.insertMany(address);
+  try {
+    const addressResponse = await Address.insertMany(address);
   const addressIds = addressResponse.map((address) => address.id);
   return addressIds;
+  } catch (error:any) {
+    throw new AppError(error.message,400)
+  }
+  
 };
 
-/**
- * @function createUser
- * @description Creates a new user in the database.
- * @param {UserType} userData - The user data to create.
- * @returns {Promise<UserType>} - A promise that resolves to the created user object.
- */
+
 const createUser = async (userData: IUser): Promise<IUser> => {
   try {
     const user = new User(userData);
@@ -138,13 +134,8 @@ const createUser = async (userData: IUser): Promise<IUser> => {
   }
 };
 
-/**
- * @function validatePassword
- * @description Validates the password entered by the user with the password stored in the database.
- * @param {string} inputPassword - The password entered by the user.
- * @param {string} storedPassword - The hashed password stored in the database.
- * @returns {Promise<boolean>} - A promise that resolves to a boolean indicating whether the password is valid.
- */
+
+
 const validatePassword = async (
   inputPassword: string,
   storedPassword: string
@@ -334,22 +325,27 @@ const sendEmail = async (
   subject: string
 ): Promise<void> => {
   const client = await createClient();
-  await client.api("/users/support@flewwithus.com/sendMail").post({
-    message: {
-      subject: subject,
-      body: {
-        contentType: "HTML",
-        content: body,
-      },
-      toRecipients: [
-        {
-          emailAddress: {
-            address: email,
-          },
+  try {
+    await client.api("/users/support@flewwithus.com/sendMail").post({
+      message: {
+        subject: subject,
+        body: {
+          contentType: "HTML",
+          content: body,
         },
-      ],
-    },
-  });
+        toRecipients: [
+          {
+            emailAddress: {
+              address: email,
+            },
+          },
+        ],
+      },
+    });
+  } catch (error:any) {
+    throw new AppError(error.message,400)
+  }
+
 };
 
 const forgotPassword = async (email: string): Promise<void> => {
@@ -372,22 +368,27 @@ const forgotPassword = async (email: string): Promise<void> => {
   const resetUrl = `${constants.URL.RESET_URL}?token=${resetToken}`;
   const htmlContent = passwordResetTemplate(resetUrl);
   const client = await createClient();
-  await client.api("/users/support@flewwithus.com/sendMail").post({
-    message: {
-      subject: "Reset Password",
-      body: {
-        contentType: "HTML",
-        content: htmlContent,
-      },
-      toRecipients: [
-        {
-          emailAddress: {
-            address: email,
-          },
+  try {
+    await client.api("/users/support@flewwithus.com/sendMail").post({
+      message: {
+        subject: "Reset Password",
+        body: {
+          contentType: "HTML",
+          content: htmlContent,
         },
-      ],
-    },
-  });
+        toRecipients: [
+          {
+            emailAddress: {
+              address: email,
+            },
+          },
+        ],
+      },
+    });
+  } catch (error:any) {
+    throw new AppError(error.message, 400);
+  }
+
 };
 
 const resetPassword = async (
@@ -414,13 +415,18 @@ const resetPassword = async (
 
   // Update user's password and clear reset token and expiry
   user.password = hashedPassword;
-  await User.updateOne(
-    { _id: user._id },
-    {
-      $set: { password: hashedPassword },
-      $unset: { resetPasswordToken: "", resetPasswordExpiry: "" },
-    }
-  );
+  try {
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: { password: hashedPassword },
+        $unset: { resetPasswordToken: "", resetPasswordExpiry: "" },
+      }
+    );
+  } catch (error:any) {
+    throw new AppError(error.message,400)
+  }
+
 };
 
 export {

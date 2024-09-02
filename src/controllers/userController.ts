@@ -20,47 +20,48 @@ const signup = catchAsync(
     response: Response,
     next: NextFunction
   ): Promise<void> => {
-    //await User.deleteMany({}); // For developement purpose only, remove it later!
-
-    const { provider, email, password, phone } = request.body; // provider: email | phone
-
+    const { provider, email, password, phone } = request.body;
+ 
     // EMAIL + PASSWORD AUTH
     if (provider === "email") {
       // Validation logic in this strategy
-
-      // Validate query params
-      try{
-        const validation = await emailOTPValidator.validate(
-          {
-            email: email,
-            password: password,
-          }
+      await emailOTPValidator
+        .validate({ email, password })
+        .catch((err) => next(new AppError(err.message, 500)));
+ 
+      const existingUser = await User.findOne({ email }).exec();
+ 
+      if (existingUser && existingUser.isVerified) {
+        return next(new AppError(constants.ERROR_MSG.EMAIL_ALREADY_EXISTS, 400));
+      }
+ 
+      // If the user exists but is not verified, allow to resend OTP
+      if (existingUser && !existingUser.isVerified) {
+        await sendOtp("email", email, null);
+        return sendResponse(
+          response,
+          200,
+          "Success",
+          constants.SUCCESS_MSG.OTP_SENT_TO_EMAIL,
+          {}
         );
       }
-      catch(err:any){
-        throw new AppError(err.message,500);
-      }
-
-      // If we are here, it means validation was successful
-      // Handle email
-      const existingUser = await User.findOne({
-        email: email,
-        isVerified: true,
-      }).exec();
-      if (existingUser) {
-        throw new AppError(constants.ERROR_MSG.EMAIL_ALREADY_EXISTS, 400);
-      }
+ 
       // Handle password
       const saltRounds = 10;
       const salt = await bcrypt.genSalt(saltRounds);
       const hashedPassword = await bcrypt.hash(password, salt);
-      // Save user to db with isVerified:false in db as default value in model
+ 
+      // Save user to db with isVerified:false
       const user = new User({
-        email: email,
+        email,
         password: hashedPassword,
       });
-      await user.save();
-      // Send OTP to email for confirmation
+ 
+      await user.save().catch((err) => {
+        return next(new AppError("Error saving user to the database", 500));
+      });
+ 
       await sendOtp("email", email, null);
       sendResponse(
         response,
@@ -70,37 +71,39 @@ const signup = catchAsync(
         {}
       );
     }
+ 
     // PHONE NUMBER AUTH
     else if (provider === "phone") {
       // Validate query params
-      try{
-        const validation = await phoneNumberValidator.validate({
-          phone: phone,
-        });
+      await phoneNumberValidator
+        .validate({ phone })
+        .catch((err) => next(new AppError(err.message, 500)));
+ 
+      const existingUser = await User.findOne({ phone }).exec();
+ 
+      if (existingUser && existingUser.isVerified) {
+        return next(new AppError(constants.ERROR_MSG.PHONE_ALREADY_EXISTS, 400));
       }
-      catch(err:any){
-        throw new AppError(err.message,500);
+ 
+      // If the user exists but is not verified, allow to resend OTP
+      if (existingUser && !existingUser.isVerified) {
+        await sendOtp("phone", null, phone);
+        return sendResponse(
+          response,
+          200,
+          "Success",
+          constants.SUCCESS_MSG.OTP_SENT_TO_PHONE,
+          {}
+        );
       }
-      
-
-      // If we are here, it means validation was successful
-
-      // Handle phone
-      const existingUser = await User.findOne({
-        phone: phone,
-        isVerified: true,
-      }).exec();
-      if (existingUser) {
-        throw new AppError(constants.ERROR_MSG.PHONE_ALREADY_EXISTS, 400);
-      }
-
-      // Save user to db with isVerified:false in db as default value in model
-      const user = new User({
-        phone: phone,
+ 
+      // Save user to db with isVerified:false
+      const user = new User({ phone });
+ 
+      await user.save().catch((err) => {
+        return next(new AppError("Error saving user to the database", 500));
       });
-      await user.save();
-
-      // Send OTP to phone for confirmation
+ 
       await sendOtp("phone", null, phone);
       sendResponse(
         response,
@@ -110,7 +113,7 @@ const signup = catchAsync(
         {}
       );
     } else {
-      throw new AppError(constants.ERROR_MSG.INVALID_PROVIDER, 400);
+      return next(new AppError(constants.ERROR_MSG.INVALID_PROVIDER, 400));
     }
   }
 );
