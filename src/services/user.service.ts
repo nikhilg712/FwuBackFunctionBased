@@ -23,6 +23,11 @@ dotenv.config();
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
+if (!accountSid || !authToken) {
+  throw new Error(
+    "Twilio account SID and auth token must be set in environment variables."
+  );
+}
 const client = twilio(accountSid, authToken);
 const TENANT_ID = process.env.TENANT_ID;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -133,8 +138,6 @@ const createUser = async (userData: IUser): Promise<IUser> => {
   }
 };
 
-
-
 /**
  * @function validatePassword
  * @description Validates the password entered by the user with the password stored in the database.
@@ -148,7 +151,6 @@ const validatePassword = async (
 ): Promise<boolean> => {
   return bcrypt.compare(inputPassword, storedPassword);
 };
-
 
 const sendEmailOtp = async (email: string): Promise<void> => {
   try {
@@ -307,20 +309,17 @@ const updateCoTraveller = async (
   return updatedCoTraveler;
 };
 
-
 const findCoTravellersByUserId = async (
   userId: string
 ): Promise<CoTravellerType[]> => {
   return await CoTraveller.find({ userId }).exec();
 };
 
-
 const findCoTravellerById = async (
   id: string
 ): Promise<CoTravellerType | null> => {
   return await CoTraveller.findById(id).exec();
 };
-
 
 const deleteCoTraveller = async (
   id: string
@@ -369,9 +368,9 @@ const forgotPassword = async (email: string): Promise<void> => {
   await user.save();
 
   // Create reset URL
-  
+
   const resetUrl = `${constants.URL.RESET_URL}?token=${resetToken}`;
-  const htmlContent = passwordResetTemplate(resetUrl)
+  const htmlContent = passwordResetTemplate(resetUrl);
   const client = await createClient();
   await client.api("/users/support@flewwithus.com/sendMail").post({
     message: {
