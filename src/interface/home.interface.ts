@@ -1,4 +1,4 @@
-export interface Airport {
+export interface AirportList {
   _id: string;
   CITYNAME: string;
   CITYCODE: string;
@@ -9,21 +9,10 @@ export interface Airport {
 }
 
 export interface AirportListResponse {
-  data: Airport[];
+  data: AirportList[];
 }
 
-export interface Flight {
-  id: number;
-  from: string;
-  to: string;
-  departureTime: string;
-  arrivalTime: string;
-  price: number;
-}
 
-export interface FlightSearchResponse {
-  data: Root[];
-}
 export interface FlightDataType {
   CITYNAME: string;
   CITYCODE: string;
@@ -40,7 +29,7 @@ export interface FlightResponseType {
 }
 
 export interface FlightSearchResponseType {
-  data: Root[];
+  data: FlightDetails[];
   flag: boolean;
   type: string;
   message: string;
@@ -71,13 +60,63 @@ export interface FareQuoteResponseType {
   message: string;
 }
 
-export interface Segment {
-  Origin: string;
-  Destination: string;
-  FlightCabinClass?: string;
-  PreferredDepartureTime: string;
-  PreferredArrivalTime: string;
+export interface Airline {
+  AirlineCode: string;
+  AirlineName: string;
+  FlightNumber: string;
+  FareClass: string;
+  OperatingCarrier: string;
 }
+
+export interface Airport {
+  AirportCode: string;
+  AirportName: string;
+  Terminal: string;
+  CityCode: string;
+  CityName: string;
+  CountryCode: string;
+  CountryName: string;
+}
+
+export interface Origin {
+  Airport: Airport;
+  DepTime: string;
+}
+
+export interface Destination {
+  Airport: Airport;
+  ArrTime: string;
+}
+
+export interface Segment {
+  Baggage: string;
+  CabinBaggage: string;
+  CabinClass: number;
+  SupplierFareClass: string | null;
+  TripIndicator: number;
+  SegmentIndicator: number;
+  Airline: Airline;
+  NoOfSeatAvailable: number;
+  Origin: Origin;
+  Destination: Destination;
+  Duration: number;
+  GroundTime: number;
+  Mile: number;
+  StopOver: boolean;
+  FlightInfoIndex: string;
+  StopPoint: string;
+  StopPointArrivalTime: string | null;
+  StopPointDepartureTime: string | null;
+  Craft: string;
+  Remark: string | null;
+  IsETicketEligible: boolean;
+  FlightStatus: string;
+  Status: string;
+  FareClassification: {
+      Type: string;
+  };
+}
+
 
 export interface RequestBody {
   EndUserIp: string;
@@ -204,6 +243,22 @@ export interface FareRule {
 export interface PenaltyCharges {
   ReissueCharge: string;
   CancellationCharge: string;
+}
+
+export interface FlightDetails {
+  AirlineName: string;
+  NoOfSeatAvailable: number;
+  OriginAirportCode: string;
+  OriginAirportName: string;
+  OriginCityName: string;
+  DestinationAirportCode: string;
+  DestinationAirportName: string;
+  DestinationCityName: string;
+  DepTime: string;
+  ArrTime: string;
+  Duration: number;
+  StopOver: boolean;
+
 }
 export interface Root {
   FirstNameFormat: string | null;

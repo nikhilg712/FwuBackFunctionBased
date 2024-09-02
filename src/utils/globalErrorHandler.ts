@@ -11,6 +11,7 @@ const globalErrorHandler = (
 
   if (err.isOperational) {
     res.status(err.statusCode).json({
+      statuscode:err.statusCode,
       status: err.status,
       message: err.message,
     });
