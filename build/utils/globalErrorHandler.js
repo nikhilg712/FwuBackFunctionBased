@@ -4,6 +4,7 @@ const globalErrorHandler = (err, req, res, next) => {
     res.setHeader("Content-Type", "application/json");
     if (err.isOperational) {
         res.status(err.statusCode).json({
+            statuscode: err.statusCode,
             status: err.status,
             message: err.message,
         });

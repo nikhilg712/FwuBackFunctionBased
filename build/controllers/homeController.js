@@ -94,11 +94,34 @@ const searchFlights = (0, responseUtils_1.catchAsync)(async (request, response, 
         returnObj.flag = false;
         returnObj.message = home_constants_1.constants.SEARCH_FLIGHT_ERROR;
     }
-    returnObj.data = flights;
-    returnObj.message = "Flights fetched successfully";
+    else {
+        // Process flights to return only selected fields
+        returnObj.data = processFlightSearchResults(flights);
+        returnObj.message = "Flights fetched successfully";
+    }
     (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data);
 });
 exports.searchFlights = searchFlights;
+function processFlightSearchResults(flights) {
+    return flights[0].map((flight) => {
+        // Assuming you're interested in the first segment of the first leg
+        const segment = flight.Segments[0][0]; // Adjust this if your structure is different
+        return {
+            AirlineName: segment.Airline.AirlineName,
+            NoOfSeatAvailable: segment.NoOfSeatAvailable,
+            OriginAirportCode: segment.Origin.Airport.AirportCode,
+            OriginAirportName: segment.Origin.Airport.AirportName,
+            OriginCityName: segment.Origin.Airport.CityName,
+            DestinationAirportCode: segment.Destination.Airport.AirportCode,
+            DestinationAirportName: segment.Destination.Airport.AirportName,
+            DestinationCityName: segment.Destination.Airport.CityName,
+            DepTime: segment.Origin.DepTime,
+            ArrTime: segment.Destination.ArrTime,
+            Duration: segment.Duration,
+            StopOver: segment.StopOver
+        };
+    });
+}
 const fareRules = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     const returnObj = {
         data: [],
@@ -154,22 +177,6 @@ const ssr = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     (0, responseUtils_1.sendResponse)(response, returnObj.flag ? 200 : 400, returnObj.flag ? "Success" : "Failure", returnObj.message, returnObj.data);
 });
 exports.ssr = ssr;
-// const generateTransactionId = () => {
-//   const timestamp = Date.now();
-//   const randomNum = Math.floor(Math.random() * 1000000);
-//   return `HS-${timestamp}${randomNum}`;
-// };
-// const objectId = () => {
-//   const secondInHex = Math.floor(new Date().getTime() / 1000).toString(16);
-//   const machineId = crypto
-//     .createHash("md5")
-//     .update(os.hostname())
-//     .digest("hex")
-//     .slice(0, 6);
-//   const processId = process.pid.toString(16).slice(0, 4).padStart(4, "0");
-//   const counter = process.hrtime()[1].toString(16).slice(0, 6).padStart(6, "0");
-//   return secondInHex + machineId + processId + counter;
-// };
 const createPayment = (0, responseUtils_1.catchAsync)(async (request, response, next) => {
     const { ResultIndex } = request.query;
     if (!ResultIndex) {

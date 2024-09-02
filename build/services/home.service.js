@@ -188,40 +188,6 @@ const searchFlights = async (request, response, next) => {
             return lowestFareFlights[flightNumber] === flight;
         });
         let data = [lowestFareFlightsArray];
-        // data = data[0];
-        // const mappedFlightInfo: SelectedFareQuote[] = data.map((flight) => ({
-        //   FirstNameFormat: flight.FirstNameFormat,
-        //   IsBookableIfSeatNotAvailable: flight.IsBookableIfSeatNotAvailable,
-        //   IsHoldAllowedWithSSR: flight.IsHoldAllowedWithSSR,
-        //   IsUpsellAllowed: flight.IsUpsellAllowed,
-        //   LastNameFormat: flight.LastNameFormat,
-        //   ResultIndex: flight.ResultIndex,
-        //   Source: flight.Source,
-        //   IsLCC: flight.IsLCC,
-        //   IsRefundable: flight.IsRefundable,
-        //   IsPanRequiredAtBook: flight.IsPanRequiredAtBook,
-        //   IsPanRequiredAtTicket: flight.IsPanRequiredAtTicket,
-        //   IsPassportRequiredAtBook: flight.IsPassportRequiredAtBook,
-        //   IsPassportRequiredAtTicket: flight.IsPassportRequiredAtTicket,
-        //   GSTAllowed: flight.GSTAllowed,
-        //   IsCouponAppilcable: flight.IsCouponAppilcable,
-        //   IsGSTMandatory: flight.IsGSTMandatory,
-        //   AirlineRemark: flight.AirlineRemark,
-        //   IsPassportFullDetailRequiredAtBook:
-        //     flight.IsPassportFullDetailRequiredAtBook,
-        //   ResultFareType: flight.ResultFareType,
-        //   Fare: flight.Fare,
-        //   FareBreakdown: flight.FareBreakdown,
-        //   Segments: flight.Segments,
-        //   LastTicketDate: flight.LastTicketDate,
-        //   TicketAdvisory: flight.TicketAdvisory,
-        //   FareRules: flight.FareRules,
-        //   PenaltyCharges: flight.PenaltyCharges,
-        //   AirlineCode: flight.AirlineCode,
-        //   MiniFareRules: flight.MiniFareRules,
-        //   ValidatingAirline: flight.ValidatingAirline,
-        //   FareClassification: flight.FareClassification,
-        // }));
         return data;
     }
     catch (err) {
