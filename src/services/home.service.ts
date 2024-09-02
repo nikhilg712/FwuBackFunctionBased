@@ -568,13 +568,13 @@ const getBooking = async (
     console.log(userId);
 
     if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
-      const responseData =
+      const fareData =
         apiResponse.data.Response.Response.FlightItinerary.Fare;
       const TDS =
-        responseData.TdsOnCommission +
-        responseData.TdsOnPLB +
-        responseData.TdsOnIncentive;
-      const NetPayable = responseData.OfferedFare + TDS;
+        fareData.TdsOnCommission +
+        fareData.TdsOnPLB +
+        fareData.TdsOnIncentive;
+      const NetPayable = fareData.OfferedFare + TDS;
       const booking = new Booking({
         userId,
         NetPayable,

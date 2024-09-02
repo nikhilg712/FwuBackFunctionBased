@@ -183,26 +183,40 @@ const searchFlights = catchAsync(
   }
 );
 
-
-function processFlightSearchResults(flights: SelectedFareQuote[][]): FlightDetails[] {
+function processFlightSearchResults(
+  flights: SelectedFareQuote[][]
+): FlightDetails[] {
   return flights[0].map((flight) => {
-      // Assuming you're interested in the first segment of the first leg
-      const segment : Segment = flight.Segments[0][0]; // Adjust this if your structure is different
+    const segment: Segment = flight.Segments[0][0];
 
-      return {
-          AirlineName: segment.Airline.AirlineName,
-          NoOfSeatAvailable: segment.NoOfSeatAvailable,
-          OriginAirportCode: segment.Origin.Airport.AirportCode,
-          OriginAirportName: segment.Origin.Airport.AirportName,
-          OriginCityName: segment.Origin.Airport.CityName,
-          DestinationAirportCode: segment.Destination.Airport.AirportCode,
-          DestinationAirportName: segment.Destination.Airport.AirportName,
-          DestinationCityName: segment.Destination.Airport.CityName,
-          DepTime: segment.Origin.DepTime,
-          ArrTime: segment.Destination.ArrTime,
-          Duration: segment.Duration,
-          StopOver: segment.StopOver
-      };
+    return {
+      resultIndex: flight.ResultIndex,
+      isLCC: flight.IsLCC,
+      airlineName: segment.Airline.AirlineName,
+      airlineCode: segment.Airline.AirlineCode,
+      flightNumber: segment.Airline.FlightNumber,
+      fareClass: segment.Airline.FareClass,
+      noOfSeatAvailable: segment.NoOfSeatAvailable,
+      originAirportCode: segment.Origin.Airport.AirportCode,
+      originAirportName: segment.Origin.Airport.AirportName,
+      originTerminal: segment.Origin.Airport.Terminal,
+      originCityName: segment.Origin.Airport.CityName,
+      destinationAirportCode: segment.Destination.Airport.AirportCode,
+      destinationAirportName: segment.Destination.Airport.AirportName,
+      destinationTerminal: segment.Destination.Airport.Terminal,
+      destinationCityName: segment.Destination.Airport.CityName,
+      departureTime: segment.Origin.DepTime,
+      arrivalTime: segment.Destination.ArrTime,
+      duration: segment.Duration,
+      stopOver: segment.StopOver,
+      stopPoint: segment.StopPoint,
+      stopPointArrivalTime: segment.StopPointArrivalTime,
+      stopPointDepartureTime: segment.StopPointDepartureTime,
+      baggage: segment.Baggage,
+      cabinBaggage: segment.CabinBaggage,
+      cabinClass: segment.CabinClass,
+      fare: flight.Fare,
+    };
   });
 }
 
@@ -308,7 +322,6 @@ const ssr = catchAsync(
     );
   }
 );
-
 
 const createPayment = catchAsync(
   async (
@@ -438,7 +451,7 @@ const paymentStatus = catchAsync(
       .catch(function (error: any) {
         console.error(error);
       });
-      
+
     if (booking) {
       const userId = booking.userId;
       const transaction = new PaymentResponse({

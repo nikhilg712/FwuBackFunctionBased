@@ -246,20 +246,34 @@ export interface PenaltyCharges {
 }
 
 export interface FlightDetails {
-  AirlineName: string;
-  NoOfSeatAvailable: number;
-  OriginAirportCode: string;
-  OriginAirportName: string;
-  OriginCityName: string;
-  DestinationAirportCode: string;
-  DestinationAirportName: string;
-  DestinationCityName: string;
-  DepTime: string;
-  ArrTime: string;
-  Duration: number;
-  StopOver: boolean;
-
+  resultIndex: string;
+  airlineName: string;
+  airlineCode: string;
+  flightNumber: string;
+  fareClass: string;
+  noOfSeatAvailable: number;
+  originAirportCode: string;
+  originAirportName: string;
+  originTerminal: string;
+  originCityName: string;
+  destinationAirportCode: string;
+  destinationAirportName: string;
+  destinationTerminal:string;
+  destinationCityName: string;
+  departureTime: string;
+  arrivalTime: string;
+  duration: number;
+  stopOver: boolean;
+  stopPoint: string;
+  stopPointArrivalTime: string | null;
+  stopPointDepartureTime: string | null;
+  isLCC: boolean;
+  fare: Fare;
+  baggage: string;
+  cabinBaggage: string;
+  cabinClass:number;
 }
+
 export interface Root {
   FirstNameFormat: string | null;
   IsBookableIfSeatNotAvailable: boolean;
