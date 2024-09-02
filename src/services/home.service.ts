@@ -129,6 +129,7 @@ const searchFlights = async (
   next: NextFunction
 ): Promise<SelectedFareQuote[][]> => {
   try {
+    // Fetch the latest authentication data
     let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
     if (!AuthData) {
       await authenticate(request, response, next);
@@ -142,6 +143,7 @@ const searchFlights = async (
 
     const tokenId = AuthData.tokenId;
 
+    // Extract and validate request query parameters
     const {
       AdultCount = 1,
       ChildCount = 0,
@@ -166,6 +168,7 @@ const searchFlights = async (
       throw new AppError("DepartureDate and ArrivalDate are required.", 400);
     }
 
+    // Construct the request body for the API call
     const requestBody = {
       EndUserIp: await getClientIp(request, response, next),
       TokenId: tokenId,
@@ -202,6 +205,7 @@ const searchFlights = async (
           : await getSourceParameter(Sources.toString()),
     };
 
+    // Handle round-trip flights
     if (JourneyType === "2") {
       requestBody.Segments.push({
         Origin: Destination,
@@ -220,8 +224,8 @@ const searchFlights = async (
 
     console.log("Request Body:", requestBody);
 
-    let apiResponse: any; // Declare apiResponse outside the try block to ensure it is accessible later
-
+    // API request to search flights
+    let apiResponse;
     try {
       apiResponse = await sendApiRequest({
         url: constants.API_URLS.SEARCH_FLIGHTS,
@@ -229,7 +233,7 @@ const searchFlights = async (
       });
       console.log(apiResponse);
 
-      // Set the TraceId cookie if it exists in the response
+      // Set TraceId cookie if exists in response
       if (apiResponse?.data?.Response?.TraceId) {
         const traceId = apiResponse.data.Response.TraceId;
         response.cookie("tekTravelsTraceId", traceId, {
@@ -239,39 +243,45 @@ const searchFlights = async (
         });
       }
     } catch (error) {
-      console.error(error);
+      console.error("API Request Error:", error);
       throw new AppError(constants.SEARCH_FLIGHT_ERROR, 500);
     }
 
-    const finalResponse = apiResponse?.data?.Response?.Results;
-    const lowestFareFlights: Record<string, any> = {};
-    finalResponse[0].forEach((flight: any) => {
-      const flightNumber = flight?.Segments[0][0].Airline.FlightNumber;
-      const baseFare = flight?.Fare?.BaseFare;
+    // Processing the API response
+    if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      const finalResponse = apiResponse?.data?.Response?.Results;
+      const lowestFareFlights: Record<string, SelectedFareQuote> = {};
 
-      if (
-        baseFare &&
-        flightNumber &&
-        (!lowestFareFlights[flightNumber] ||
-          baseFare < lowestFareFlights[flightNumber].Fare.BaseFare)
-      ) {
-        lowestFareFlights[flightNumber] = flight;
-      }
-    });
+      finalResponse[0].forEach((flight: SelectedFareQuote) => {
+        const flightNumber = flight?.Segments[0][0].Airline.FlightNumber;
+        const baseFare = flight?.Fare?.BaseFare;
 
-    const lowestFareFlightsArray = finalResponse[0].filter((flight: any) => {
-      const flightNumber = flight?.Segments[0][0].Airline.FlightNumber;
-      return lowestFareFlights[flightNumber] === flight;
-    });
-    let data: SelectedFareQuote[][] = [lowestFareFlightsArray];
+        if (
+          baseFare &&
+          flightNumber &&
+          (!lowestFareFlights[flightNumber] ||
+            baseFare < lowestFareFlights[flightNumber].Fare.BaseFare)
+        ) {
+          lowestFareFlights[flightNumber] = flight;
+        }
+      });
 
-    return data;
+      const lowestFareFlightsArray = finalResponse[0].filter((flight: SelectedFareQuote) => {
+        const flightNumber = flight?.Segments[0][0].Airline.FlightNumber;
+        return lowestFareFlights[flightNumber] === flight;
+      });
+
+      return [lowestFareFlightsArray];
+    } else {
+      throw new AppError("No flights found or an error occurred during the search.", 404);
+    }
   } catch (err: any) {
     console.error("Service Error:", err);
     next(new AppError(err.message, 500));
     return [] as SelectedFareQuote[][];
   }
 };
+
 
 const getFareRule = async (
   request: Request,
@@ -316,14 +326,21 @@ const getFareRule = async (
       throw new AppError(constants.ERROR_MSG.FARE_RULE_FETCH_FAILED, 500);
     }
 
-    // Return the Fare Rules from the API response
-    const data: FareRule[] = apiResponse?.data?.Response?.FareRules;
-    return data;
+    // Check if the API response contains a valid error code
+    if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      // Return the Fare Rules from the API response
+      const data: FareRule[] = apiResponse?.data?.Response?.FareRules;
+      return data;
+    } else {
+      throw new AppError("Failed to fetch fare rules.", 500);
+    }
   } catch (err: any) {
     next(new AppError(err.message, err.statusCode || 500));
     return [] as FareRule[];
   }
 };
+
+
 
 const getFareQuote = async (
   request: Request,
@@ -369,12 +386,19 @@ const getFareQuote = async (
       throw new AppError(constants.ERROR_MSG.FARE_QUOTE_FETCH_FAILED, 500);
     }
 
-    return apiResponse?.data?.Response?.Results;
+    // Check if the API response contains a valid error code
+    if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      // Return the fare quote results from the API response
+      return apiResponse?.data?.Response?.Results;
+    } else {
+      throw new AppError("Failed to fetch fare quote.", 500);
+    }
   } catch (err: any) {
     next(new AppError(err.message, err.statusCode || 500));
     return undefined;
   }
 };
+
 
 const getSSR = async (
   request: Request,
@@ -420,15 +444,22 @@ const getSSR = async (
       throw new AppError(constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
     }
 
-    const result: SSRFlightData = {
-      Meal: apiResponse?.data?.Response.Meal,
-      SeatDynamic: apiResponse?.data?.Response.SeatDynamic,
-    };
-    return result;
+    // Check if the API response contains a valid error code
+    if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      const result: SSRFlightData = {
+        Meal: apiResponse?.data?.Response.Meal,
+        SeatDynamic: apiResponse?.data?.Response.SeatDynamic,
+      };
+      return result;
+    } else {
+      throw new AppError("Failed to fetch SSR data.", 500);
+    }
   } catch (err: any) {
-    throw new AppError(err.message, err.statusCode || 500);
+    next(new AppError(err.message, err.statusCode || 500));
+    throw err;
   }
 };
+
 
 const authenticate = async (
   request: Request,
