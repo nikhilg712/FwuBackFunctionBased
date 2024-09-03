@@ -615,29 +615,20 @@ const ticketLCC = async (
   next: NextFunction
 ) => {
   try {
-    const { ResultIndex } = request.query;
+    const merchantTransactionId = +request.params.merchantTransactionId;
+    const booking = await Booking.findOne({ id: merchantTransactionId });
 
-    if (!ResultIndex) {
-      throw new AppError("ResultIndex is required", 400);
-    }
 
     const AuthData = await getAuthenticatedToken(request, response, next);
 
-    const user = request.user as { id: string };
-    const userId = user.id;
-    console.log(userId);
-
-    const booking = await Booking.findOne({ ResultIndex, userId });
-
-    const Passengers = request.body.Passengers;
     const requestBody = {
       PreferredCurrency: null,
       EndUserIp: await getClientIp(request, response, next),
       AgentReferenceNo: "",
       TokenId: AuthData.tokenId,
       TraceId: request.cookies.tekTravelsTraceId,
-      ResultIndex: ResultIndex.toString(),
-      Passengers: Passengers,
+      ResultIndex: booking?.ResultIndex.toString(),
+      Passengers: booking?.FlightItinerary.Passenger
     };
 
     let apiResponse: any;
@@ -661,9 +652,6 @@ const ticketLCC = async (
         fareData.TdsOnCommission + fareData.TdsOnPLB + fareData.TdsOnIncentive;
       const NetPayable = fareData.OfferedFare + TDS;
       const booking = new Booking({
-        userId,
-        NetPayable,
-        ResultIndex,
         ...apiResponse.data.Response.Response,
       });
 

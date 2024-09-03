@@ -25,6 +25,7 @@ import {
   getBooking,
   getBookingDetails,
   ticketNonLCC,
+  ticketLCC as LCCTicketBooking
 } from "../services/home.service";
 import {
   FlightResponseType,
@@ -505,7 +506,7 @@ const paymentStatus = catchAsync(
       );
     } else {
       const booking = await Booking.findOne({
-        BookingId: merchantTransactionId,
+        id: merchantTransactionId,
       });
       const saltKey = process.env.PHONEPE_SALTKEY;
 
@@ -547,42 +548,48 @@ const paymentStatus = catchAsync(
         .catch(function (error: any) {
           console.error(error);
         });
+        
+        try{
+            const userId = booking?.userId;
+            const transaction = new Transaction({
+              userId,
+              ...phonepeData,
+            });
+    
+            await transaction.save();
+    
+            if (
+              phonepeData.code !== "PAYMENT_SUCCESS" ||
+              phonepeData.success !== true
+            ) {
+              throw new AppError(phonepeData.message, 400);
+            } else {
+              if (booking) {
+                booking.PaymentStatus = "Success";
+              }
+              const bookingLCC: any = await LCCTicketBooking(request, response, next);
+              returnObj.data = bookingLCC;
+              returnObj.message = "Ticket fetched successfully";
+    
+              if (!bookingLCC) {
+                returnObj.flag = false;
+                returnObj.message = constants.TICKET_ERROR;
+              }
+            }
+            sendResponse(
+              response,
+              returnObj.flag ? 200 : 400,
+              returnObj.flag ? "Success" : "Failure",
+              returnObj.message,
+              returnObj.data
+            );
 
-      if (booking) {
-        const userId = booking.userId;
-        const transaction = new Transaction({
-          userId,
-          ...phonepeData,
-        });
-
-        await transaction.save();
-
-        if (
-          phonepeData.code !== "PAYMENT_SUCCESS" ||
-          phonepeData.success !== true
-        ) {
-          throw new AppError(phonepeData.message, 400);
-        } else {
-          if (booking) {
-            booking.PaymentStatus = "Success";
-          }
-          const bookingLCC: any = await ticketLCC(request, response, next);
-          returnObj.data = bookingLCC;
-          returnObj.message = "Ticket fetched successfully";
-
-          if (!bookingLCC) {
-            returnObj.flag = false;
-            returnObj.message = constants.TICKET_ERROR;
-          }
         }
-        sendResponse(
-          response,
-          returnObj.flag ? 200 : 400,
-          returnObj.flag ? "Success" : "Failure",
-          returnObj.message,
-          returnObj.data
-        );
-      }
+        catch(err:any){
+          console.log(err.message)
+        }
+
+
       // const booking = await Booking.findOne({ BookingId: merchantTransactionId });
     }
   }
@@ -637,7 +644,7 @@ const ticketLCC = catchAsync(
     const user = request.user as { id: string };
     const userId = user.id;
     console.log(userId);
-    const { ResultIndex } = request.query;
+    const { ResultIndex,IsLCC } = request.query;
 
     const Passengers = request.body.Passengers;
     if (!ResultIndex) {
@@ -645,15 +652,21 @@ const ticketLCC = catchAsync(
     }
 
     const booking: any = await Booking.findOne({ ResultIndex, userId });
+    if(booking){
+      console.log(booking.NetPayable)
+    }
+
+    booking.FlightItinerary.Passenger = Passengers;
+
     const merchantTransactionId = booking?.id;
     const data = {
       merchantId: process.env.PHONEPE_MERCHANTID,
       merchantTransactionId,
       merchantUserId: userId,
       amount: 1 * 100,
-      redirectUrl: `${process.env.PHONEPE_REDIRECT_URI}${merchantTransactionId}`,
+      redirectUrl: `${process.env.PHONEPE_REDIRECT_URI}${merchantTransactionId}/${IsLCC}`,
       redirectMode: "REDIRECT",
-      callbackUrl: `${process.env.PHONEPE_CALLBACK_URI}${merchantTransactionId}`,
+      callbackUrl: `${process.env.PHONEPE_CALLBACK_URI}${merchantTransactionId}/${IsLCC}`,
       mobileNumber: "",
       paymentInstrument: {
         type: "PAY_PAGE",
@@ -688,10 +701,7 @@ const ticketLCC = catchAsync(
       });
 
     // Add passengers to the flightItenary.Passengers array
-    booking?.FlightItinerary?.Passenger = [
-      ...booking.FlightItinerary.Passenger,
-      ...Passengers,
-    ];
+
 
     // Save the updated booking document
     await booking.save();

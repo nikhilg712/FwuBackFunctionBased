@@ -30,8 +30,7 @@ const initializeRoutes = (router: Router) => {
   router.get(`${path}ssr`, isAuthenticated, ssr);
   router.get(`${path}pay`, isAuthenticated, createPayment);
   router.get(
-    `${path}payment/validate/:merchantTransactionId`,
-    isAuthenticated,
+    `${path}payment/validate/:merchantTransactionId/:IsLCC`,
     paymentStatus
   );
   router.get(`${path}booking`, isAuthenticated, booking);
