@@ -11,7 +11,7 @@ export interface FeesContext {
   amount: number;
 }
 
-export interface PaymentResponseDocument extends Document {
+export interface TransactionDocument extends Document {
   userId: Schema.Types.ObjectId;
   BookingId: number;
   success: boolean;
@@ -40,7 +40,7 @@ const FeesContextSchema = new Schema<FeesContext>({
   amount: { type: Number, default: 0 },
 });
 
-const PaymentResponseSchema = new Schema<PaymentResponseDocument>({
+const TransactionSchema = new Schema<TransactionDocument>({
   userId: { type: Schema.Types.ObjectId, ref: "User" },
   success: { type: Boolean},
   code: { type: String},
@@ -60,7 +60,7 @@ const PaymentResponseSchema = new Schema<PaymentResponseDocument>({
   },
 });
 
-export const PaymentResponse = model<PaymentResponseDocument>(
-  "PaymentResponse",
-  PaymentResponseSchema
+export const Transaction = model<TransactionDocument>(
+  "Transaction",
+  TransactionSchema
 );

@@ -130,18 +130,7 @@ const searchFlights = async (
 ): Promise<SelectedFareQuote[][]> => {
   try {
     // Fetch the latest authentication data
-    let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    if (!AuthData) {
-      await authenticate(request, response, next);
-      AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-      console.log("Authenticated");
-    }
-
-    if (!AuthData) {
-      throw new AppError("Authentication failed. No token found.", 500);
-    }
-
-    const tokenId = AuthData.tokenId;
+    const AuthData = await getAuthenticatedToken(request, response, next);
 
     // Extract and validate request query parameters
     const {
@@ -171,7 +160,7 @@ const searchFlights = async (
     // Construct the request body for the API call
     const requestBody = {
       EndUserIp: await getClientIp(request, response, next),
-      TokenId: tokenId,
+      TokenId: AuthData.tokenId,
       AdultCount,
       ChildCount,
       InfantCount,
@@ -295,15 +284,7 @@ const getFareRule = async (
       throw new AppError("ResultIndex is required", 400);
     }
 
-    let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    if (!AuthData) {
-      await authenticate(request, response, next);
-      AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    }
-
-    if (!AuthData) {
-      throw new AppError("Authentication failed. No token found.", 500);
-    }
+    const AuthData = await getAuthenticatedToken(request, response, next);
 
     const requestBody = {
       EndUserIp: await getClientIp(request, response, next),
@@ -354,15 +335,7 @@ const getFareQuote = async (
       throw new AppError("ResultIndex is required", 400);
     }
 
-    let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    if (!AuthData) {
-      await authenticate(request, response, next);
-      AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    }
-
-    if (!AuthData) {
-      throw new AppError("Authentication failed. No token found.", 500);
-    }
+    const AuthData = await getAuthenticatedToken(request, response, next);
 
     const requestBody = {
       EndUserIp: await getClientIp(request, response, next),
@@ -412,15 +385,7 @@ const getSSR = async (
       throw new AppError("ResultIndex is required", 400);
     }
 
-    let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    if (!AuthData) {
-      await authenticate(request, response, next);
-      AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    }
-
-    if (!AuthData) {
-      throw new AppError("Authentication failed. No token found.", 500);
-    }
+    const AuthData = await getAuthenticatedToken(request, response, next);
 
     const requestBody = {
       EndUserIp: await getClientIp(request, response, next),
@@ -460,58 +425,6 @@ const getSSR = async (
   }
 };
 
-
-const authenticate = async (
-  request: Request,
-  response: Response,
-  next: NextFunction
-): Promise<AuthTokenResponse> => {
-  try {
-    let headerip: string | undefined = request.headers[
-      "x-forwarded-for"
-    ] as string;
-    headerip = headerip?.split(",").shift();
-    const userIP: string = headerip || request.socket?.remoteAddress || "";
-
-    const body = {
-      ClientId: process.env.TEK_TRAVELS_CLIENT_ID,
-      UserName: process.env.TEK_TRAVELS_USERNAME,
-      Password: process.env.TEK_TRAVELS_PASSWORD,
-      EndUserIp: userIP,
-    };
-
-    let apiResponse: any;
-    try {
-      apiResponse = await sendApiRequest({
-        url: constants.API_URLS.AUTHENTICATE,
-        data: JSON.stringify(body),
-      });
-      console.log(apiResponse);
-    } catch (err: any) {
-      console.error(
-        "Error Response:",
-        err.response ? err.response.data : err.message
-      );
-      throw new AppError(constants.ERROR_MSG.AUTHENTICATION_FAILED, 500);
-    }
-
-    if (apiResponse?.data?.Error?.ErrorCode === 0) {
-      const auth = new AuthToken({
-        ipAddress: process.env.SERVER_IP_ADDRESS,
-        tokenId: apiResponse.data.TokenId,
-        MemberId: apiResponse.data.Member.MemberId,
-        AgencyId: apiResponse.data.Member.AgencyId,
-      });
-
-      await auth.save();
-      return { data: apiResponse.data };
-    } else {
-      throw new AppError("Failed", 400);
-    }
-  } catch (error: any) {
-    throw new AppError(error.message, 400);
-  }
-};
 
 const getClientIp = async (
   request: Request,
@@ -559,15 +472,7 @@ const getBooking = async (
       throw new AppError("ResultIndex is required", 400);
     }
 
-    let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    if (!AuthData) {
-      await authenticate(request, response, next);
-      AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    }
-
-    if (!AuthData) {
-      throw new AppError("Authentication failed. No token found.", 500);
-    }
+    const AuthData = await getAuthenticatedToken(request, response, next);
 
     const passenger = request.body.Passengers;
     const requestBody = {
@@ -628,15 +533,7 @@ const ticketNonLCC = async (
   try {
     const merchantTransactionId = +request.params.merchantTransactionId;
     const booking = await Booking.findOne({ BookingId: merchantTransactionId });
-    let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    if (!AuthData) {
-      await authenticate(request, response, next);
-      AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    }
-
-    if (!AuthData) {
-      throw new AppError("Authentication failed. No token found.", 500);
-    }
+    const AuthData = await getAuthenticatedToken(request, response, next);
     const requestBody = {
       EndUserIp: await getClientIp(request, response, next),
       TokenId: AuthData.tokenId,
@@ -711,15 +608,7 @@ const getBookingDetails = async (
   try {
     const { PNR } = request.query;
 
-    let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    if (!AuthData) {
-      await authenticate(request, response, next);
-      AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-    }
-
-    if (!AuthData) {
-      throw new AppError("Authentication failed. No token found.", 500);
-    }
+    const AuthData = await getAuthenticatedToken(request, response, next);
 
     const booking = await Booking.findOne({ PNR });
     if (!booking) {
@@ -755,13 +644,29 @@ const getBookingDetails = async (
     throw new AppError(err.message, err.statusCode || 500);
   }
 };
+
+// Authenticates and retrieves the latest AuthToken
+async function getAuthenticatedToken(
+  request: Request,
+  response: Response,
+  next: NextFunction
+): Promise<any> {
+  let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
+  
+
+  if (!AuthData) {
+    throw new AppError("Authentication failed. No token found.", 500);
+  }
+
+  return AuthData;
+}
+
 export {
   getAirportByCode,
   getAirportList,
   getClientIp,
   getFareQuote,
   searchFlights,
-  authenticate,
   getFareRule,
   getSSR,
   getBooking,

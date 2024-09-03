@@ -19,7 +19,6 @@ import {
   getAirportByCode,
   getAirportList,
   searchFlights as getFlights,
-  authenticate,
   getFareRule,
   getFareQuote,
   getSSR,
@@ -34,11 +33,9 @@ import {
 import { constants } from "../constants/home.constants";
 import { AppError } from "../utils/appError";
 import crypto from "crypto";
-import { Buffer } from "buffer";
-import os from "os";
 import axios from "axios";
 import { Booking } from "../models/Booking";
-import { PaymentResponse } from "../models/Transaction";
+import { Transaction } from "../models/Transaction";
 
 const getCountryList = catchAsync(
   async (
@@ -99,11 +96,7 @@ const getAirportsList = catchAsync(
   }
 );
 
-/**
- * @function getAirportByCode
- * @description Retrieves the airports from database according to the query params passed.
- * @param {string} query - The query parameter needed to search the airport
- */
+
 const getAirportsByCode = catchAsync(
   async (
     request: Request,
@@ -237,8 +230,6 @@ function processFlightSearchResults(
     };
   });
 }
-
-
 
 
 const fareRules = catchAsync(
@@ -475,7 +466,7 @@ const paymentStatus = catchAsync(
 
     if (booking) {
       const userId = booking.userId;
-      const transaction = new PaymentResponse({
+      const transaction = new Transaction({
         userId,
         BookingId,
         ...phonepeData,
@@ -512,36 +503,6 @@ const paymentStatus = catchAsync(
   }
 );
 
-const authenticateToken = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    const returnObj: AuthTokenResponseType = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
-
-    const token = await authenticate(request, response, next);
-    returnObj.data = token.data;
-    returnObj.message = "Token generated successfully";
-    if (!token) {
-      returnObj.flag = false;
-      returnObj.message = "An error occurred while generating token.";
-    }
-
-    sendResponse(
-      response,
-      returnObj.flag ? 200 : 500,
-      "Success",
-      returnObj.message,
-      returnObj.data
-    );
-  }
-);
 
 const booking = catchAsync(
   async (
@@ -642,7 +603,6 @@ const bookingDetails = catchAsync(
 );
 export {
   getCountryList,
-  authenticateToken,
   fareQuote,
   fareRules,
   searchFlights,
