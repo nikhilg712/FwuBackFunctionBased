@@ -1,7 +1,6 @@
 import express, { NextFunction, Request, Response, Router } from "express";
 import {
   getCountryList,
-  authenticateToken,
   fareQuote,
   fareRules,
   searchFlights,
@@ -25,19 +24,18 @@ const initializeRoutes = (router: Router) => {
   router.get(`${path}country`, getCountryList);
   router.get(`${path}airports`, getAirportsList);
   router.get(`${path}airportByCode`, getAirportsByCode);
-  router.get(`${path}searchFlights`, searchFlights);
-  router.get(`${path}fareRule`, fareRules);
-  router.get(`${path}fareQuote`, fareQuote);
-  router.get(`${path}ssr`, ssr);
-  router.get(`${path}pay`, createPayment);
-  router.get(`${path}payment/validate/:merchantTransactionId`, paymentStatus);
+  router.get(`${path}searchFlights`,isAuthenticated, searchFlights);
+  router.get(`${path}fareRule`,isAuthenticated, fareRules);
+  router.get(`${path}fareQuote`,isAuthenticated, fareQuote);
+  router.get(`${path}ssr`,isAuthenticated, ssr);
+  router.get(`${path}pay`, isAuthenticated,createPayment);
+  router.get(`${path}payment/validate/:merchantTransactionId`,isAuthenticated, paymentStatus);
   router.get(`${path}booking`, isAuthenticated, booking);
-  router.get(`${path}bookingDetails`, bookingDetails);
-  router.get(`${path}ticketNonLCC`, ticket);
+  router.get(`${path}bookingDetails`,isAuthenticated, bookingDetails);
+  router.get(`${path}ticketNonLCC`,isAuthenticated, ticket);
   /* *****POST******
         ==============================================*/
 
-  router.post(`${path}authenticate`, authenticateToken);
 };
 
 initializeRoutes(homeRouter);

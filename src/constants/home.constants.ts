@@ -33,7 +33,7 @@ export const constants = {
     NO_SUCH_AIRPORT: "No Such Airport Found",
     FARE_RULE_FETCH_FAILED: "Can't fetch fair rules",
     FARE_QUOTE_FETCH_FAILED: "Can't fetch fair quotes",
-    AUTHENTICATION_FAILED: "Authentication Failed",
+    AUTHENTICATION_FAILED: "Authentication failed. No token found.",
     SSR_FETCH_FAILED: "SSR Ftech Failed",
   },
   TRANSACTIONID_NOT_FOUND: "no transaction id found",

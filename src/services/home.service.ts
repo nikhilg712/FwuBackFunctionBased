@@ -255,14 +255,19 @@ const searchFlights = async (
         }
       });
 
-      const lowestFareFlightsArray = finalResponse[0].filter((flight: SelectedFareQuote) => {
-        const flightNumber = flight?.Segments[0][0].Airline.FlightNumber;
-        return lowestFareFlights[flightNumber] === flight;
-      });
+      const lowestFareFlightsArray = finalResponse[0].filter(
+        (flight: SelectedFareQuote) => {
+          const flightNumber = flight?.Segments[0][0].Airline.FlightNumber;
+          return lowestFareFlights[flightNumber] === flight;
+        }
+      );
 
       return [lowestFareFlightsArray];
     } else {
-      throw new AppError("No flights found or an error occurred during the search.", 404);
+      throw new AppError(
+        "No flights found or an error occurred during the search.",
+        404
+      );
     }
   } catch (err: any) {
     console.error("Service Error:", err);
@@ -270,7 +275,6 @@ const searchFlights = async (
     return [] as SelectedFareQuote[][];
   }
 };
-
 
 const getFareRule = async (
   request: Request,
@@ -321,8 +325,6 @@ const getFareRule = async (
   }
 };
 
-
-
 const getFareQuote = async (
   request: Request,
   response: Response,
@@ -359,8 +361,25 @@ const getFareQuote = async (
       throw new AppError(constants.ERROR_MSG.FARE_QUOTE_FETCH_FAILED, 500);
     }
 
+    const user = request.user as { id: string };
+    const userId = user.id;
+
     // Check if the API response contains a valid error code
     if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      if(apiResponse.data.Response.Results.IsLCC === true){
+        const fareData = apiResponse.data.Response.Results.Fare;
+        const TDS =
+          fareData.TdsOnCommission + fareData.TdsOnPLB + fareData.TdsOnIncentive;
+        const NetPayable = fareData.OfferedFare + TDS;
+        const booking = new Booking({
+          userId,
+          NetPayable,
+          ResultIndex,
+        });
+        await booking.save();
+
+      }
+  
       // Return the fare quote results from the API response
       return apiResponse?.data?.Response?.Results;
     } else {
@@ -371,7 +390,6 @@ const getFareQuote = async (
     return undefined;
   }
 };
-
 
 const getSSR = async (
   request: Request,
@@ -424,7 +442,6 @@ const getSSR = async (
     throw err;
   }
 };
-
 
 const getClientIp = async (
   request: Request,
@@ -503,12 +520,9 @@ const getBooking = async (
     console.log(userId);
 
     if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
-      const fareData =
-        apiResponse.data.Response.Response.FlightItinerary.Fare;
+      const fareData = apiResponse.data.Response.Response.FlightItinerary.Fare;
       const TDS =
-        fareData.TdsOnCommission +
-        fareData.TdsOnPLB +
-        fareData.TdsOnIncentive;
+        fareData.TdsOnCommission + fareData.TdsOnPLB + fareData.TdsOnIncentive;
       const NetPayable = fareData.OfferedFare + TDS;
       const booking = new Booking({
         userId,
@@ -652,10 +666,9 @@ async function getAuthenticatedToken(
   next: NextFunction
 ): Promise<any> {
   let AuthData = await AuthToken.findOne().sort({ _id: -1 }).exec();
-  
 
   if (!AuthData) {
-    throw new AppError("Authentication failed. No token found.", 500);
+    throw new AppError(constants.ERROR_MSG.AUTHENTICATION_FAILED, 500);
   }
 
   return AuthData;

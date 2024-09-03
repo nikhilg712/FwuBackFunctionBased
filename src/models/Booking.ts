@@ -155,7 +155,6 @@ const BookingSchema: Schema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: "User" },
   PNR: {
     type: String,
-    required: true,
   },
   ResultIndex:{
     type: String,
@@ -167,8 +166,7 @@ const BookingSchema: Schema = new Schema({
     default:null
   },
   BookingId: {
-    type: Number,
-    required: true,
+    type: Number
   },
   SSRDenied: {
     type: Boolean,
@@ -180,7 +178,6 @@ const BookingSchema: Schema = new Schema({
   },
   Status: {
     type: Number,
-    required: true,
   },
   IsPriceChanged: {
     type: Boolean,
