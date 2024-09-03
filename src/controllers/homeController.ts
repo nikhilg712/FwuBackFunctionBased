@@ -638,11 +638,13 @@ const ticketLCC = catchAsync(
     const userId = user.id;
     console.log(userId);
     const { ResultIndex } = request.query;
+
+    const Passengers = request.body.Passengers;
     if (!ResultIndex) {
       throw new AppError("ResultIndex is required", 400);
     }
 
-    const booking = await Booking.findOne({ ResultIndex, userId });
+    const booking: any = await Booking.findOne({ ResultIndex, userId });
     const merchantTransactionId = booking?.id;
     const data = {
       merchantId: process.env.PHONEPE_MERCHANTID,
@@ -685,6 +687,14 @@ const ticketLCC = catchAsync(
         console.log(error);
       });
 
+    // Add passengers to the flightItenary.Passengers array
+    booking?.FlightItinerary?.Passenger = [
+      ...booking.FlightItinerary.Passenger,
+      ...Passengers,
+    ];
+
+    // Save the updated booking document
+    await booking.save();
     sendResponse(response, 200, "Success", "Payment Initiated", result);
 
     // const booking: any = await ticketNonLCC(request, response, next);
