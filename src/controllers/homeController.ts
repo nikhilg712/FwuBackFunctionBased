@@ -25,7 +25,11 @@ import {
   getBooking,
   getBookingDetails,
   ticketNonLCC,
-  ticketLCC as LCCTicketBooking
+  ticketLCC as LCCTicketBooking,
+  getSendChangeReq,
+  getChangeRequestStatus,
+  getCancellationcharges,
+  getCancelPnrReq,
 } from "../services/home.service";
 import {
   FlightResponseType,
@@ -548,47 +552,48 @@ const paymentStatus = catchAsync(
         .catch(function (error: any) {
           console.error(error);
         });
-        
-        try{
-            const userId = booking?.userId;
-            const transaction = new Transaction({
-              userId,
-              ...phonepeData,
-            });
-    
-            await transaction.save();
-    
-            if (
-              phonepeData.code !== "PAYMENT_SUCCESS" ||
-              phonepeData.success !== true
-            ) {
-              throw new AppError(phonepeData.message, 400);
-            } else {
-              if (booking) {
-                booking.PaymentStatus = "Success";
-              }
-              const bookingLCC: any = await LCCTicketBooking(request, response, next);
-              returnObj.data = bookingLCC;
-              returnObj.message = "Ticket fetched successfully";
-    
-              if (!bookingLCC) {
-                returnObj.flag = false;
-                returnObj.message = constants.TICKET_ERROR;
-              }
-            }
-            sendResponse(
-              response,
-              returnObj.flag ? 200 : 400,
-              returnObj.flag ? "Success" : "Failure",
-              returnObj.message,
-              returnObj.data
-            );
 
-        }
-        catch(err:any){
-          console.log(err.message)
-        }
+      try {
+        const userId = booking?.userId;
+        const transaction = new Transaction({
+          userId,
+          ...phonepeData,
+        });
 
+        await transaction.save();
+
+        if (
+          phonepeData.code !== "PAYMENT_SUCCESS" ||
+          phonepeData.success !== true
+        ) {
+          throw new AppError(phonepeData.message, 400);
+        } else {
+          if (booking) {
+            booking.PaymentStatus = "Success";
+          }
+          const bookingLCC: any = await LCCTicketBooking(
+            request,
+            response,
+            next
+          );
+          returnObj.data = bookingLCC;
+          returnObj.message = "Ticket fetched successfully";
+
+          if (!bookingLCC) {
+            returnObj.flag = false;
+            returnObj.message = constants.TICKET_ERROR;
+          }
+        }
+        sendResponse(
+          response,
+          returnObj.flag ? 200 : 400,
+          returnObj.flag ? "Success" : "Failure",
+          returnObj.message,
+          returnObj.data
+        );
+      } catch (err: any) {
+        console.log(err.message);
+      }
 
       // const booking = await Booking.findOne({ BookingId: merchantTransactionId });
     }
@@ -644,7 +649,7 @@ const ticketLCC = catchAsync(
     const user = request.user as { id: string };
     const userId = user.id;
     console.log(userId);
-    const { ResultIndex,IsLCC } = request.query;
+    const { ResultIndex, IsLCC } = request.query;
 
     const Passengers = request.body.Passengers;
     if (!ResultIndex) {
@@ -652,8 +657,8 @@ const ticketLCC = catchAsync(
     }
 
     const booking: any = await Booking.findOne({ ResultIndex, userId });
-    if(booking){
-      console.log(booking.NetPayable)
+    if (booking) {
+      console.log(booking.NetPayable);
     }
 
     booking.FlightItinerary.Passenger = Passengers;
@@ -701,7 +706,6 @@ const ticketLCC = catchAsync(
       });
 
     // Add passengers to the flightItenary.Passengers array
-
 
     // Save the updated booking document
     await booking.save();
@@ -759,6 +763,139 @@ const bookingDetails = catchAsync(
     );
   }
 );
+
+const cancelPnrReq = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: any = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    // Call the getfareQuote service method
+
+    const booking: any = await getCancelPnrReq(request, response, next);
+    returnObj.data = booking;
+    returnObj.message = "Booking fetched successfully";
+
+    if (!booking) {
+      returnObj.flag = false;
+      returnObj.message = constants.GET_BOOKING_FAILED;
+    }
+
+    sendResponse(
+      response,
+      returnObj.flag ? 200 : 400,
+      returnObj.flag ? "Success" : "Failure",
+      returnObj.message,
+      returnObj.data
+    );
+  }
+);
+const sendChangeReq = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: any = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    // Call the getfareQuote service method
+
+    const booking: any = await getSendChangeReq(request, response, next);
+    returnObj.data = booking;
+    returnObj.message = "Booking fetched successfully";
+
+    if (!booking) {
+      returnObj.flag = false;
+      returnObj.message = constants.GET_BOOKING_FAILED;
+    }
+
+    sendResponse(
+      response,
+      returnObj.flag ? 200 : 400,
+      returnObj.flag ? "Success" : "Failure",
+      returnObj.message,
+      returnObj.data
+    );
+  }
+);
+const changeRequestStatus = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: any = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    // Call the getfareQuote service method
+
+    const booking: any = await getChangeRequestStatus(request, response, next);
+    returnObj.data = booking;
+    returnObj.message = "Booking fetched successfully";
+
+    if (!booking) {
+      returnObj.flag = false;
+      returnObj.message = constants.GET_BOOKING_FAILED;
+    }
+
+    sendResponse(
+      response,
+      returnObj.flag ? 200 : 400,
+      returnObj.flag ? "Success" : "Failure",
+      returnObj.message,
+      returnObj.data
+    );
+  }
+);
+const cancellationcharges = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: any = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    // Call the getfareQuote service method
+
+    const booking: any = await getCancellationcharges(request, response, next);
+    returnObj.data = booking;
+    returnObj.message = "Booking fetched successfully";
+
+    if (!booking) {
+      returnObj.flag = false;
+      returnObj.message = constants.GET_BOOKING_FAILED;
+    }
+
+    sendResponse(
+      response,
+      returnObj.flag ? 200 : 400,
+      returnObj.flag ? "Success" : "Failure",
+      returnObj.message,
+      returnObj.data
+    );
+  }
+);
 export {
   getCountryList,
   fareQuote,
@@ -772,4 +909,8 @@ export {
   booking,
   bookingDetails,
   ticketLCC,
+  cancelPnrReq,
+  sendChangeReq,
+  changeRequestStatus,
+  cancellationcharges,
 };

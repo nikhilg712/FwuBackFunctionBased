@@ -12,6 +12,10 @@ import {
   booking,
   bookingDetails,
   ticketLCC,
+  cancelPnrReq,
+  sendChangeReq,
+  changeRequestStatus,
+  cancellationcharges,
 } from "../controllers/homeController";
 import { isAuthenticated } from "../middleware/authenticate";
 
@@ -35,7 +39,21 @@ const initializeRoutes = (router: Router) => {
   );
   router.get(`${path}booking`, isAuthenticated, booking);
   router.get(`${path}bookingDetails`, isAuthenticated, bookingDetails);
-  router.get(`${path}ticketLCC`, isAuthenticated, ticketLCC);
+  router.post(`${path}ticketLCC`, isAuthenticated, ticketLCC);
+
+  router.post(`${path}cancelPnr`, isAuthenticated, cancelPnrReq);
+  router.post(`${path}sendChangeReq`, isAuthenticated, sendChangeReq);
+  router.post(
+    `${path}getChangeRequestStatus`,
+    isAuthenticated,
+    changeRequestStatus
+  );
+  router.post(
+    `${path}getCancellationcharges`,
+    isAuthenticated,
+    cancellationcharges
+  );
+
   /* *****POST******
         ==============================================*/
 };

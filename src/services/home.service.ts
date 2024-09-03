@@ -366,10 +366,12 @@ const getFareQuote = async (
 
     // Check if the API response contains a valid error code
     if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
-      if(apiResponse.data.Response.Results.IsLCC === true){
+      if (apiResponse.data.Response.Results.IsLCC === true) {
         const fareData = apiResponse.data.Response.Results.Fare;
         const TDS =
-          fareData.TdsOnCommission + fareData.TdsOnPLB + fareData.TdsOnIncentive;
+          fareData.TdsOnCommission +
+          fareData.TdsOnPLB +
+          fareData.TdsOnIncentive;
         const NetPayable = fareData.OfferedFare + TDS;
         const booking = new Booking({
           userId,
@@ -377,9 +379,8 @@ const getFareQuote = async (
           ResultIndex,
         });
         await booking.save();
-
       }
-  
+
       // Return the fare quote results from the API response
       return apiResponse?.data?.Response?.Results;
     } else {
@@ -618,7 +619,6 @@ const ticketLCC = async (
     const merchantTransactionId = +request.params.merchantTransactionId;
     const booking = await Booking.findOne({ id: merchantTransactionId });
 
-
     const AuthData = await getAuthenticatedToken(request, response, next);
 
     const requestBody = {
@@ -628,7 +628,7 @@ const ticketLCC = async (
       TokenId: AuthData.tokenId,
       TraceId: request.cookies.tekTravelsTraceId,
       ResultIndex: booking?.ResultIndex.toString(),
-      Passengers: booking?.FlightItinerary.Passenger
+      Passengers: booking?.FlightItinerary.Passenger,
     };
 
     let apiResponse: any;
@@ -722,6 +722,185 @@ async function getAuthenticatedToken(
   return AuthData;
 }
 
+async function getSendChangeReq(
+  request: Request,
+  response: Response,
+  next: NextFunction
+): Promise<any> {
+  try {
+    const { PNR } = request.query;
+    const { RequestType } = request.query;
+    const { CancellationType } = request.query;
+    const { Remarks } = request.query;
+    const AuthData = await getAuthenticatedToken(request, response, next);
+
+    const booking = await Booking.findOne({ PNR });
+    if (!booking) {
+      throw new AppError("Booking Not found.", 400);
+    }
+    const requestBody = {
+      EndUserIp: await getClientIp(request, response, next),
+      TokenId: AuthData.tokenId,
+      BookingId: booking.BookingId,
+      CancellationType: CancellationType,
+      Remarks: Remarks,
+      RequestType: RequestType,
+    };
+
+    let apiResponse: any;
+    try {
+      apiResponse = await sendApiRequest({
+        url: constants.API_URLS.SEND_CHANGE_REQ,
+        data: requestBody,
+      });
+      console.log(apiResponse);
+    } catch (err: any) {
+      console.error(
+        "Error Response:",
+        err.response ? err.response.data : err.message
+      );
+      throw new AppError(constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
+    }
+
+    if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      return { data: apiResponse.data };
+    }
+  } catch (err: any) {
+    throw new AppError(err.message, err.statusCode || 500);
+  }
+}
+
+async function getChangeRequestStatus(
+  request: Request,
+  response: Response,
+  next: NextFunction
+): Promise<any> {
+  try {
+    const { PNR } = request.query;
+    const { ChangeRequestId } = request.query;
+    const AuthData = await getAuthenticatedToken(request, response, next);
+
+    const booking = await Booking.findOne({ PNR });
+    if (!booking) {
+      throw new AppError("Booking Not found.", 400);
+    }
+    const requestBody = {
+      EndUserIp: await getClientIp(request, response, next),
+      TokenId: AuthData.tokenId,
+      ChangeRequestId: ChangeRequestId,
+    };
+
+    let apiResponse: any;
+    try {
+      apiResponse = await sendApiRequest({
+        url: constants.API_URLS.CHANGE_REQ_STATUS,
+        data: requestBody,
+      });
+      console.log(apiResponse);
+    } catch (err: any) {
+      console.error(
+        "Error Response:",
+        err.response ? err.response.data : err.message
+      );
+      throw new AppError(constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
+    }
+
+    if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      return { data: apiResponse.data };
+    }
+  } catch (err: any) {
+    throw new AppError(err.message, err.statusCode || 500);
+  }
+}
+
+async function getCancellationcharges(
+  request: Request,
+  response: Response,
+  next: NextFunction
+): Promise<any> {
+  try {
+    const { PNR } = request.query;
+    const { RequestType } = request.query;
+    const AuthData = await getAuthenticatedToken(request, response, next);
+
+    const booking = await Booking.findOne({ PNR });
+    if (!booking) {
+      throw new AppError("Booking Not found.", 400);
+    }
+    const requestBody = {
+      EndUserIp: await getClientIp(request, response, next),
+      TokenId: AuthData.tokenId,
+      RequestType: RequestType,
+      BookingId: booking.BookingId,
+    };
+
+    let apiResponse: any;
+    try {
+      apiResponse = await sendApiRequest({
+        url: constants.API_URLS.CANCELLATION_CHARGES,
+        data: requestBody,
+      });
+      console.log(apiResponse);
+    } catch (err: any) {
+      console.error(
+        "Error Response:",
+        err.response ? err.response.data : err.message
+      );
+      throw new AppError(constants.ERROR_MSG.SSR_FETCH_FAILED, 400);
+    }
+
+    if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      return { data: apiResponse.data };
+    }
+  } catch (err: any) {
+    throw new AppError(err.message, err.statusCode || 500);
+  }
+}
+
+async function getCancelPnrReq(
+  request: Request,
+  response: Response,
+  next: NextFunction
+): Promise<any> {
+  try {
+    const { PNR } = request.query;
+    const { Source } = request.query;
+    const AuthData = await getAuthenticatedToken(request, response, next);
+
+    const booking = await Booking.findOne({ PNR });
+    if (!booking) {
+      throw new AppError("Booking Not found.", 400);
+    }
+    const requestBody = {
+      EndUserIp: await getClientIp(request, response, next),
+      TokenId: AuthData.tokenId,
+      BookingId: booking.BookingId,
+      Source: Source,
+    };
+
+    let apiResponse: any;
+    try {
+      apiResponse = await sendApiRequest({
+        url: constants.API_URLS.CANCEL_PNR_REQUEST,
+        data: requestBody,
+      });
+      console.log(apiResponse);
+    } catch (err: any) {
+      console.error(
+        "Error Response:",
+        err.response ? err.response.data : err.message
+      );
+      throw new AppError(constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
+    }
+
+    if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      return { data: apiResponse.data };
+    }
+  } catch (err: any) {
+    throw new AppError(err.message, err.statusCode || 500);
+  }
+}
+
 export {
   getAirportByCode,
   getAirportList,
@@ -734,4 +913,8 @@ export {
   getBookingDetails,
   ticketNonLCC,
   ticketLCC,
+  getSendChangeReq,
+  getChangeRequestStatus,
+  getCancellationcharges,
+  getCancelPnrReq,
 };

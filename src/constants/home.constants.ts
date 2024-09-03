@@ -22,9 +22,11 @@ export const constants = {
     SSR: `${MAIN_URL}SSR`,
     GET_BOOKING_DETAILS: `${MAIN_URL}GetBookingDetails`,
     TICKET: `${MAIN_URL}ticket`,
-    AUTHENTICATE:
-      "https://api.tektravels.com/SharedServices/SharedData.svc/rest/Authenticate",
     BOOKING: `${MAIN_URL}Book`,
+    CANCEL_PNR_REQUEST: `${MAIN_URL}ReleasePNRRequest`,
+    CANCELLATION_CHARGES: `${MAIN_URL}GetCancellationCharges`,
+    SEND_CHANGE_REQ: `${MAIN_URL}SendChangeRequest`,
+    CHANGE_REQ_STATUS: `${MAIN_URL}GetChangeRequestStatus`,
   },
   ERROR_TYPE: {
     ERROR: "ERROR",
