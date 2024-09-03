@@ -21,20 +21,22 @@ const signup = catchAsync(
     next: NextFunction
   ): Promise<void> => {
     const { provider, email, password, phone } = request.body;
- 
+
     // EMAIL + PASSWORD AUTH
     if (provider === "email") {
       // Validation logic in this strategy
       await emailOTPValidator
         .validate({ email, password })
         .catch((err) => next(new AppError(err.message, 500)));
- 
+
       const existingUser = await User.findOne({ email }).exec();
- 
+
       if (existingUser && existingUser.isVerified) {
-        return next(new AppError(constants.ERROR_MSG.EMAIL_ALREADY_EXISTS, 400));
+        return next(
+          new AppError(constants.ERROR_MSG.EMAIL_ALREADY_EXISTS, 400)
+        );
       }
- 
+
       // If the user exists but is not verified, allow to resend OTP
       if (existingUser && !existingUser.isVerified) {
         await sendOtp("email", email, null);
@@ -46,22 +48,22 @@ const signup = catchAsync(
           {}
         );
       }
- 
+
       // Handle password
       const saltRounds = 10;
       const salt = await bcrypt.genSalt(saltRounds);
       const hashedPassword = await bcrypt.hash(password, salt);
- 
+
       // Save user to db with isVerified:false
       const user = new User({
         email,
         password: hashedPassword,
       });
- 
+
       await user.save().catch((err) => {
         return next(new AppError("Error saving user to the database", 500));
       });
- 
+
       await sendOtp("email", email, null);
       sendResponse(
         response,
@@ -71,20 +73,22 @@ const signup = catchAsync(
         {}
       );
     }
- 
+
     // PHONE NUMBER AUTH
     else if (provider === "phone") {
       // Validate query params
       await phoneNumberValidator
         .validate({ phone })
         .catch((err) => next(new AppError(err.message, 500)));
- 
+
       const existingUser = await User.findOne({ phone }).exec();
- 
+
       if (existingUser && existingUser.isVerified) {
-        return next(new AppError(constants.ERROR_MSG.PHONE_ALREADY_EXISTS, 400));
+        return next(
+          new AppError(constants.ERROR_MSG.PHONE_ALREADY_EXISTS, 400)
+        );
       }
- 
+
       // If the user exists but is not verified, allow to resend OTP
       if (existingUser && !existingUser.isVerified) {
         await sendOtp("phone", null, phone);
@@ -96,14 +100,14 @@ const signup = catchAsync(
           {}
         );
       }
- 
+
       // Save user to db with isVerified:false
       const user = new User({ phone });
- 
+
       await user.save().catch((err) => {
         return next(new AppError("Error saving user to the database", 500));
       });
- 
+
       await sendOtp("phone", null, phone);
       sendResponse(
         response,
@@ -211,6 +215,13 @@ const login = catchAsync(
       }
 
       await sendOtp("phone", null, phone);
+      return sendResponse(
+        response,
+        200,
+        "Success",
+        constants.SUCCESS_MSG.OTP_SENT_TO_PHONE,
+        user
+      );
     } else {
       throw new AppError(constants.ERROR_MSG.INVALID_PROVIDER, 400);
     }
@@ -226,24 +237,21 @@ const verifyLogin = catchAsync(
   ): Promise<void> => {
     const { provider, email, phone, otp } = request.body; // provider: email | phone
 
-    passport.authenticate(
-      "login-phone",
-      (err: unknown, user: any, info: any) => {
-        if (err) return next(err);
-        if (!user) return next(err); // Handle failed login
+    passport.authenticate("login-phone", (err: any, user: any, info: any) => {
+      if (err) return next(new AppError(err.message, 400));
+      if (!user) return next(new AppError(info.message, 400)); // Handle failed login
 
-        request.login(user, (err: unknown) => {
-          if (err) return next(err);
-          return sendResponse(
-            response,
-            200,
-            "Success",
-            constants.SUCCESS_MSG.LOGGED_IN,
-            user
-          );
-        });
-      }
-    )(request, response, next);
+      request.login(user, (err: unknown) => {
+        if (err) return next(err);
+        return sendResponse(
+          response,
+          200,
+          "Success",
+          constants.SUCCESS_MSG.LOGGED_IN,
+          user
+        );
+      });
+    })(request, response, next);
   }
 );
 
@@ -293,20 +301,20 @@ const googleSignInCallback = catchAsync(
   ): Promise<void> => {
     passport.authenticate(
       "google",
-      (err: unknown, user: unknown, info: unknown) => {
+      (err: any, user: unknown, info: any) => {
         if (err) {
           console.error("Error:", err);
-          return next(err);
+          return next(new AppError(err.message, 400));
         }
         if (!user) {
           console.log("No user found");
-          return next(new Error("Authentication failed"));
+          return next(new AppError(info.message, 400));
         }
 
         request.logIn(user, (err) => {
           if (err) {
             console.error("Login error:", err);
-            return next(err);
+            return next(new AppError(err.message, 400));
           }
 
           response.redirect(`http://localhost:3000?authSuccess=true`);
@@ -331,14 +339,18 @@ const logout = catchAsync(
         if (err) {
           return next(err);
         }
-        response.clearCookie("connect.sid");
-        sendResponse(
-          response,
-          200,
-          "Success",
-          constants.SUCCESS_MSG.LOGGED_OUT,
-          {}
-        );
+        if (request.cookies["connect.sid"]) {
+          response.clearCookie("connect.sid");
+          sendResponse(
+            response,
+            200,
+            "Success",
+            constants.SUCCESS_MSG.LOGGED_OUT,
+            {}
+          );
+        } else {
+          throw new AppError(constants.ERROR_MSG.NOT_LOGGED_IN, 400);
+        }
       });
     });
   }
@@ -353,18 +365,13 @@ const updateUser = catchAsync(
   ): Promise<void> => {
     const { _id, username, dateOfBirth, gender } = request.body;
 
-    try{
-      const validation =    await profileUpdateValidator.validate({
+    const validation = await profileUpdateValidator
+      .validate({
         username,
         dateOfBirth,
         gender,
-      });
-    }
-    catch(err:any){
-      throw new AppError(err.message,500);
-    }
-
- 
+      })
+      .catch((err) => next(new AppError(err.message, 400)));
 
     const user = await User.findByIdAndUpdate(
       _id,
@@ -374,7 +381,7 @@ const updateUser = catchAsync(
         gender,
       },
       { new: true }
-    );
+    ).catch((err) => next(new AppError(err.message, 400)));
 
     sendResponse(
       response,
@@ -392,7 +399,9 @@ const getAwsUrl = catchAsync(
     response: Response,
     next: NextFunction
   ): Promise<void> => {
-    const url = await generateSignedUrl();
+    const url = await generateSignedUrl().catch((err) =>
+      next(new AppError(err.message, 500))
+    );
     sendResponse(response, 200, "Success", "Aws url generated", url);
   }
 );

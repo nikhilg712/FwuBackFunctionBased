@@ -22,7 +22,8 @@ export const constants = {
     INVALID_OTP_PROVIDER: "Invalid OTP Provider",
     UNABLE_TO_UPDATE_USER: "User Not Updated",
     PASSWORDS_DO_NOT_MATCH:"Passwords do not match",
-    INVALID_TOKEN: "Invalid or expired token"
+    INVALID_TOKEN: "Invalid or expired token",
+    NOT_LOGGED_IN:"User not logged in"
   },
 
   SUCCESS_MSG: {
