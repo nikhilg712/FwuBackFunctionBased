@@ -491,13 +491,13 @@ const getBooking = async (
 
     const AuthData = await getAuthenticatedToken(request, response, next);
 
-    const passenger = request.body.Passengers;
+    const Passengers = request.body.Passengers;
     const requestBody = {
       EndUserIp: await getClientIp(request, response, next),
       TokenId: AuthData.tokenId,
       TraceId: request.cookies.tekTravelsTraceId,
       ResultIndex: ResultIndex.toString(),
-      Passengers: passenger,
+      Passengers: Passengers,
     };
 
     let apiResponse: any;
@@ -613,7 +613,67 @@ const ticketLCC = async (
   request: Request,
   response: Response,
   next: NextFunction
-) => {};
+) => {
+  try {
+    const { ResultIndex } = request.query;
+
+    if (!ResultIndex) {
+      throw new AppError("ResultIndex is required", 400);
+    }
+
+    const AuthData = await getAuthenticatedToken(request, response, next);
+
+    const user = request.user as { id: string };
+    const userId = user.id;
+    console.log(userId);
+
+    const booking = await Booking.findOne({ ResultIndex, userId });
+
+    const Passengers = request.body.Passengers;
+    const requestBody = {
+      PreferredCurrency: null,
+      EndUserIp: await getClientIp(request, response, next),
+      AgentReferenceNo: "",
+      TokenId: AuthData.tokenId,
+      TraceId: request.cookies.tekTravelsTraceId,
+      ResultIndex: ResultIndex.toString(),
+      Passengers: Passengers,
+    };
+
+    let apiResponse: any;
+    try {
+      apiResponse = await sendApiRequest({
+        url: constants.API_URLS.TICKET,
+        data: requestBody,
+      });
+      console.log(apiResponse);
+    } catch (err: any) {
+      console.error(
+        "Error Response:",
+        err.response ? err.response.data : err.message
+      );
+      throw new AppError(constants.ERROR_MSG.SSR_FETCH_FAILED, 500);
+    }
+
+    if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
+      const fareData = apiResponse.data.Response.Response.FlightItinerary.Fare;
+      const TDS =
+        fareData.TdsOnCommission + fareData.TdsOnPLB + fareData.TdsOnIncentive;
+      const NetPayable = fareData.OfferedFare + TDS;
+      const booking = new Booking({
+        userId,
+        NetPayable,
+        ResultIndex,
+        ...apiResponse.data.Response.Response,
+      });
+
+      await booking.save();
+      return { data: apiResponse.data };
+    }
+  } catch (err: any) {
+    throw new AppError(err.message, err.statusCode || 500);
+  }
+};
 const getBookingDetails = async (
   request: Request,
   response: Response,

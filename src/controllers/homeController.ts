@@ -96,7 +96,6 @@ const getAirportsList = catchAsync(
   }
 );
 
-
 const getAirportsByCode = catchAsync(
   async (
     request: Request,
@@ -231,7 +230,6 @@ function processFlightSearchResults(
   });
 }
 
-
 const fareRules = catchAsync(
   async (
     request: Request,
@@ -341,17 +339,311 @@ const createPayment = catchAsync(
     response: Response,
     next: NextFunction
   ): Promise<void> => {
-    const { ResultIndex } = request.query;
-
+    const { ResultIndex, IsLCC } = request.query;
     if (!ResultIndex) {
       throw new AppError("ResultIndex is required", 400);
     }
+
+    if (!IsLCC) {
+      const user = request.user as { id: string };
+      const userId = user.id;
+      const { PNR } = request.query;
+      const booking = await Booking.findOne({ PNR });
+      console.log("Net Payable Amount:", booking?.NetPayable!);
+      const merchantTransactionId = booking?.BookingId;
+      const data = {
+        merchantId: process.env.PHONEPE_MERCHANTID,
+        merchantTransactionId,
+        merchantUserId: userId,
+        amount: 1 * 100,
+        redirectUrl: `${process.env.PHONEPE_REDIRECT_URI}${merchantTransactionId}`,
+        redirectMode: "REDIRECT",
+        callbackUrl: `${process.env.PHONEPE_CALLBACK_URI}${merchantTransactionId}`,
+        mobileNumber: "",
+        paymentInstrument: {
+          type: "PAY_PAGE",
+        },
+      };
+      const encode = btoa(JSON.stringify(data));
+      const saltKey = process.env.PHONEPE_SALTKEY;
+      const saltIndex = 1;
+
+      const encodedData = encode + "/pg/v1/pay" + saltKey;
+      const hash = crypto.createHash("sha256");
+      //Pass the original data to be hashed
+      const originalValue = hash.update(encodedData, "utf-8");
+      //Creating the hash value in the specific format
+      const hashValue = originalValue.digest("hex");
+      const sha256 = hashValue + "###" + saltIndex;
+
+      const options = {
+        method: "POST",
+        url: process.env.PHONEPE_API,
+        data: { request: encode },
+        headers: { "x-verify": sha256, "Content-Type": "application/json" },
+      };
+
+      const result = await axios
+        .request(options)
+        .then(function (response: any) {
+          return response.data;
+        })
+        .catch(function (error: any) {
+          console.log(error);
+        });
+
+      sendResponse(response, 200, "Success", "Payment Initiated", result);
+      console.log(result);
+    } else {
+      const requestBody = {};
+    }
+  }
+);
+
+const paymentStatus = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: any = {
+      data: [],
+      flag: true,
+      type: "",
+      message: "",
+    };
+    const { merchantTransactionId } = request.params;
+
+    const { IsLCC } = request.params;
+
+    if (!merchantTransactionId) {
+      throw new AppError(constants.TRANSACTIONID_NOT_FOUND, 400);
+    }
+    if (!IsLCC) {
+      const booking = await Booking.findOne({ _id: merchantTransactionId });
+      const BookingId = merchantTransactionId;
+
+      // if (!TransactionId) { throw constants.TRANSACTIONID_NOT_RECEIVED; }
+      // if (!paymentInstrument) { throw constants.PAYMENT_INSTRUMENT_NOT_RECEIVED; }
+
+      const saltKey = process.env.PHONEPE_SALTKEY;
+
+      const saltIndex = process.env.PHONEPE_SALTINDEX;
+
+      const encodeData =
+        "/pg/v1/status/" +
+        process.env.PHONEPE_MERCHANTID +
+        "/" +
+        merchantTransactionId +
+        saltKey;
+
+      const hash = crypto.createHash("sha256");
+
+      //Pass the original data to be hashed
+      const originalValue = hash.update(encodeData, "utf-8");
+
+      //Creating the hash value in the specific format
+      const hashValue = originalValue.digest("hex");
+
+      const sha256 = hashValue + "###" + saltIndex;
+
+      const options = {
+        method: "GET",
+        url: `${process.env.PHONEPE_CHECKSTATUS_API}${process.env.PHONEPE_MERCHANTID}/${merchantTransactionId}`,
+        headers: {
+          accept: "application/json",
+          "Content-Type": "application/json",
+          "x-verify": sha256,
+          "X-MERCHANT-ID": process.env.PHONEPE_MERCHANTID,
+        },
+      };
+
+      const phonepeData: any = await axios
+        .request(options)
+        .then(function (response: any) {
+          return response.data;
+        })
+        .catch(function (error: any) {
+          console.error(error);
+        });
+
+      if (booking) {
+        const userId = booking.userId;
+        const transaction = new Transaction({
+          userId,
+          BookingId,
+          ...phonepeData,
+        });
+
+        await transaction.save();
+      }
+
+      if (
+        phonepeData.code !== "PAYMENT_SUCCESS" ||
+        phonepeData.success !== true
+      ) {
+        throw new AppError(phonepeData.message, 400);
+      } else {
+        if (booking) {
+          booking.PaymentStatus = "Success";
+        }
+        const bookingNonLCC: any = await ticketNonLCC(request, response, next);
+        returnObj.data = bookingNonLCC;
+        returnObj.message = "Ticket fetched successfully";
+
+        if (!bookingNonLCC) {
+          returnObj.flag = false;
+          returnObj.message = constants.TICKET_ERROR;
+        }
+      }
+      sendResponse(
+        response,
+        returnObj.flag ? 200 : 400,
+        returnObj.flag ? "Success" : "Failure",
+        returnObj.message,
+        returnObj.data
+      );
+    } else {
+      const booking = await Booking.findOne({
+        BookingId: merchantTransactionId,
+      });
+      const saltKey = process.env.PHONEPE_SALTKEY;
+
+      const saltIndex = process.env.PHONEPE_SALTINDEX;
+
+      const encodeData =
+        "/pg/v1/status/" +
+        process.env.PHONEPE_MERCHANTID +
+        "/" +
+        merchantTransactionId +
+        saltKey;
+
+      const hash = crypto.createHash("sha256");
+
+      //Pass the original data to be hashed
+      const originalValue = hash.update(encodeData, "utf-8");
+
+      //Creating the hash value in the specific format
+      const hashValue = originalValue.digest("hex");
+
+      const sha256 = hashValue + "###" + saltIndex;
+
+      const options = {
+        method: "GET",
+        url: `${process.env.PHONEPE_CHECKSTATUS_API}${process.env.PHONEPE_MERCHANTID}/${merchantTransactionId}`,
+        headers: {
+          accept: "application/json",
+          "Content-Type": "application/json",
+          "x-verify": sha256,
+          "X-MERCHANT-ID": process.env.PHONEPE_MERCHANTID,
+        },
+      };
+
+      const phonepeData: any = await axios
+        .request(options)
+        .then(function (response: any) {
+          return response.data;
+        })
+        .catch(function (error: any) {
+          console.error(error);
+        });
+
+      if (booking) {
+        const userId = booking.userId;
+        const transaction = new Transaction({
+          userId,
+          ...phonepeData,
+        });
+
+        await transaction.save();
+
+        if (
+          phonepeData.code !== "PAYMENT_SUCCESS" ||
+          phonepeData.success !== true
+        ) {
+          throw new AppError(phonepeData.message, 400);
+        } else {
+          if (booking) {
+            booking.PaymentStatus = "Success";
+          }
+          const bookingLCC: any = await ticketLCC(request, response, next);
+          returnObj.data = bookingLCC;
+          returnObj.message = "Ticket fetched successfully";
+
+          if (!bookingLCC) {
+            returnObj.flag = false;
+            returnObj.message = constants.TICKET_ERROR;
+          }
+        }
+        sendResponse(
+          response,
+          returnObj.flag ? 200 : 400,
+          returnObj.flag ? "Success" : "Failure",
+          returnObj.message,
+          returnObj.data
+        );
+      }
+      // const booking = await Booking.findOne({ BookingId: merchantTransactionId });
+    }
+  }
+);
+
+const booking = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: any = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
+
+    // Call the getfareQuote service method
+
+    const booking: any = await getBooking(request, response, next);
+    returnObj.data = booking;
+    returnObj.message = "Booking fetched successfully";
+
+    if (!booking) {
+      returnObj.flag = false;
+      returnObj.message = constants.BOOKING_FAILED_FOR_NONLCC;
+    }
+
+    sendResponse(
+      response,
+      returnObj.flag ? 200 : 400,
+      returnObj.flag ? "Success" : "Failure",
+      returnObj.message,
+      returnObj.data
+    );
+  }
+);
+
+const ticketLCC = catchAsync(
+  async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const returnObj: any = {
+      data: {},
+      flag: true,
+      type: "",
+      message: "",
+    };
     const user = request.user as { id: string };
     const userId = user.id;
-    const { PNR } = request.query;
-    const booking = await Booking.findOne({ PNR });
-    console.log("Net Payable Amount:", booking?.NetPayable!);
-    const merchantTransactionId = booking?.BookingId;
+    console.log(userId);
+    const { ResultIndex } = request.query;
+    if (!ResultIndex) {
+      throw new AppError("ResultIndex is required", 400);
+    }
+
+    const booking = await Booking.findOne({ ResultIndex, userId });
+    const merchantTransactionId = booking?.id;
     const data = {
       merchantId: process.env.PHONEPE_MERCHANTID,
       merchantTransactionId,
@@ -394,180 +686,26 @@ const createPayment = catchAsync(
       });
 
     sendResponse(response, 200, "Success", "Payment Initiated", result);
-    console.log(result);
+
+    // const booking: any = await ticketNonLCC(request, response, next);
+    // returnObj.data = booking;
+    // returnObj.message = "Booking fetched successfully";
+
+    // if (!booking) {
+    //   returnObj.flag = false;
+    //   returnObj.message = constants.TICKET_ERROR;
+    // }
+
+    // sendResponse(
+    //   response,
+    //   returnObj.flag ? 200 : 400,
+    //   returnObj.flag ? "Success" : "Failure",
+    //   returnObj.message,
+    //   returnObj.data
+    // );
   }
 );
 
-const paymentStatus = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    const returnObj: any = {
-      data: [],
-      flag: true,
-      type: "",
-      message: "",
-    };
-    const { merchantTransactionId } = request.params;
-
-    if (!merchantTransactionId) {
-      throw new AppError(constants.TRANSACTIONID_NOT_FOUND, 400);
-    }
-
-    const booking = await Booking.findOne({ BookingId: merchantTransactionId });
-
-    const BookingId = merchantTransactionId;
-
-    // if (!TransactionId) { throw constants.TRANSACTIONID_NOT_RECEIVED; }
-    // if (!paymentInstrument) { throw constants.PAYMENT_INSTRUMENT_NOT_RECEIVED; }
-
-    const saltKey = process.env.PHONEPE_SALTKEY;
-
-    const saltIndex = process.env.PHONEPE_SALTINDEX;
-
-    const encodeData =
-      "/pg/v1/status/" +
-      process.env.PHONEPE_MERCHANTID +
-      "/" +
-      merchantTransactionId +
-      saltKey;
-
-    const hash = crypto.createHash("sha256");
-
-    //Pass the original data to be hashed
-    const originalValue = hash.update(encodeData, "utf-8");
-
-    //Creating the hash value in the specific format
-    const hashValue = originalValue.digest("hex");
-
-    const sha256 = hashValue + "###" + saltIndex;
-
-    const options = {
-      method: "GET",
-      url: `${process.env.PHONEPE_CHECKSTATUS_API}${process.env.PHONEPE_MERCHANTID}/${merchantTransactionId}`,
-      headers: {
-        accept: "application/json",
-        "Content-Type": "application/json",
-        "x-verify": sha256,
-        "X-MERCHANT-ID": process.env.PHONEPE_MERCHANTID,
-      },
-    };
-
-    const phonepeData: any = await axios
-      .request(options)
-      .then(function (response: any) {
-        return response.data;
-      })
-      .catch(function (error: any) {
-        console.error(error);
-      });
-
-    if (booking) {
-      const userId = booking.userId;
-      const transaction = new Transaction({
-        userId,
-        BookingId,
-        ...phonepeData,
-      });
-
-      await transaction.save();
-    }
-
-    if (
-      phonepeData.code !== "PAYMENT_SUCCESS" ||
-      phonepeData.success !== true
-    ) {
-      throw new AppError(phonepeData.message, 400);
-    } else {
-      if (booking) {
-        booking.PaymentStatus = "Success";
-      }
-      const bookingNonLCC: any = await ticketNonLCC(request, response, next);
-      returnObj.data = bookingNonLCC;
-      returnObj.message = "Ticket fetched successfully";
-
-      if (!bookingNonLCC) {
-        returnObj.flag = false;
-        returnObj.message = constants.TICKET_ERROR;
-      }
-    }
-    sendResponse(
-      response,
-      returnObj.flag ? 200 : 400,
-      returnObj.flag ? "Success" : "Failure",
-      returnObj.message,
-      returnObj.data
-    );
-  }
-);
-
-
-const booking = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    const returnObj: any = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
-
-    // Call the getfareQuote service method
-
-    const booking: any = await getBooking(request, response, next);
-    returnObj.data = booking;
-    returnObj.message = "Booking fetched successfully";
-
-    if (!booking) {
-      returnObj.flag = false;
-      returnObj.message = constants.BOOKING_FAILED_FOR_NONLCC;
-    }
-
-    sendResponse(
-      response,
-      returnObj.flag ? 200 : 400,
-      returnObj.flag ? "Success" : "Failure",
-      returnObj.message,
-      returnObj.data
-    );
-  }
-);
-
-const ticket = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    const returnObj: any = {
-      data: {},
-      flag: true,
-      type: "",
-      message: "",
-    };
-    const booking: any = await ticketNonLCC(request, response, next);
-    returnObj.data = booking;
-    returnObj.message = "Booking fetched successfully";
-
-    if (!booking) {
-      returnObj.flag = false;
-      returnObj.message = constants.TICKET_ERROR;
-    }
-
-    sendResponse(
-      response,
-      returnObj.flag ? 200 : 400,
-      returnObj.flag ? "Success" : "Failure",
-      returnObj.message,
-      returnObj.data
-    );
-  }
-);
 const bookingDetails = catchAsync(
   async (
     request: Request,
@@ -613,5 +751,5 @@ export {
   paymentStatus,
   booking,
   bookingDetails,
-  ticket,
+  ticketLCC,
 };
