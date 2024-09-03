@@ -53,6 +53,7 @@ export interface FareRuleResponseType {
   message: string;
 }
 
+
 export interface FareQuoteResponseType {
   data: Array<object>;
   flag: boolean;
@@ -278,6 +279,54 @@ export interface FlightDetails {
   inBound: SegmentDetails[];
 }
 
+export interface FareQuoteDetails {
+  FirstNameFormat: string;
+  IsBookableIfSeatNotAvailable: boolean;
+  IsHoldAllowedWithSSR: boolean;
+  LastNameFormat: string;
+  ResultIndex: string;
+  Source: number;
+  IsLCC: boolean;
+  IsRefundable: boolean;
+  IsPanRequiredAtBook: boolean;
+  IsPanRequiredAtTicket: boolean;
+  IsPassportRequiredAtBook: boolean;
+  IsPassportRequiredAtTicket: boolean;
+  GSTAllowed: boolean;
+  IsCouponAppilcable: boolean;
+  IsGSTMandatory: boolean;
+  IsHoldAllowed: boolean;
+  AirlineRemark: string;
+  IsPassportFullDetailRequiredAtBook: boolean;
+  ResultFareType: string;
+  Fare: Fare;
+  FareBreakdown: FareBreakdown[];
+  Segments: Segment[][];
+  LastTicketDate: string;
+  TicketAdvisory: string | null;
+  FareRules: FareRule[];
+  MiniFareRules: MiniFareRule[][];
+  ValidatingAirline: string;
+  FareClassification: FareClassificationDetails;
+}
+
+export interface FareQuote{
+  resultIndex: string;
+  isLCC: boolean;
+  isRefundable:boolean;
+  isPanRequiredAtBook:boolean;
+  isPanRequiredAtTicket:boolean ,
+  isPassportRequiredAtBook: boolean,
+  isPassportRequiredAtTicket:boolean,
+  fare: Fare;
+  GSTAllowed:boolean;
+  isCouponAppilcable:boolean;
+  isGSTMandatory:boolean;
+  isHoldAllowed:boolean;
+  outBound: SegmentDetails[];
+  inBound: SegmentDetails[];
+}
+
 
 export interface SelectedFareQuote {
   FirstNameFormat: string | null;
@@ -351,7 +400,7 @@ export interface SeatDynamic {
 
 export interface SSRFlightData {
   Meal: MealOption[];
-  SeatDynamic: SeatDynamic[];
+  SegmentSeat: SegmentSeat[];
 }
 
 export interface SSRResponseType {

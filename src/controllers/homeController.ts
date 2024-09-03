@@ -13,6 +13,8 @@ import {
   Segment,
   FlightDetails,
   SegmentDetails,
+  FareQuoteDetails,
+  FareQuote,
 } from "../interface/home.interface";
 import { CountryModel } from "../models/country";
 import {
@@ -282,7 +284,7 @@ const fareQuote = catchAsync(
 
     // Call the getfareQuote service method
     const fareQuote = await getFareQuote(request, response, next);
-    returnObj.data = fareQuote;
+    returnObj.data = processFareQuoteResults(fareQuote);
     returnObj.message = "Fare quote fetched successfully";
     if (!fareQuote) {
       returnObj.flag = false;
@@ -306,6 +308,73 @@ const fareQuote = catchAsync(
   }
 );
 
+function processFareQuoteResults(fareQuoteDetails: FareQuoteDetails[]): FareQuote[] {
+  
+  const fareQuotesArray = Array.isArray(fareQuoteDetails) ? fareQuoteDetails : [fareQuoteDetails];
+
+  return fareQuotesArray.map((quote) => {
+    const outBound: SegmentDetails[] = [];
+    const inBound: SegmentDetails[] = [];
+
+    // Iterate over each segment array in the quote.Segments array
+    quote.Segments.forEach((segmentArray: Segment[]) => {
+      segmentArray.forEach((segment: Segment) => {
+        const segmentDetails: SegmentDetails = {
+          airlineName: segment.Airline.AirlineName,
+          airlineCode: segment.Airline.AirlineCode,
+          flightNumber: segment.Airline.FlightNumber,
+          noOfSeatAvailable: segment.NoOfSeatAvailable,
+          fareClass: segment.Airline.FareClass,
+          originAirportCode: segment.Origin.Airport.AirportCode,
+          originAirportName: segment.Origin.Airport.AirportName,
+          originTerminal: segment.Origin.Airport.Terminal,
+          originCityName: segment.Origin.Airport.CityName,
+          destinationAirportCode: segment.Destination.Airport.AirportCode,
+          destinationAirportName: segment.Destination.Airport.AirportName,
+          destinationTerminal: segment.Destination.Airport.Terminal,
+          destinationCityName: segment.Destination.Airport.CityName,
+          departureTime: segment.Origin.DepTime,
+          arrivalTime: segment.Destination.ArrTime,
+          duration: segment.Duration,
+          stopOver: segment.StopOver,
+          stopPoint: segment.StopPoint,
+          stopPointArrivalTime: segment.StopPointArrivalTime,
+          stopPointDepartureTime: segment.StopPointDepartureTime,
+          baggage: segment.Baggage,
+          cabinBaggage: segment.CabinBaggage,
+          cabinClass: segment.CabinClass,
+        };
+
+        // Determine if the segment is outbound or inbound
+        if (segment.TripIndicator === 1) {
+          outBound.push(segmentDetails);
+        } else if (segment.TripIndicator === 2) {
+          inBound.push(segmentDetails);
+        }
+      });
+    });
+
+    return {
+      resultIndex: quote.ResultIndex,
+      isLCC: quote.IsLCC,
+      isRefundable: quote.IsRefundable,
+      isPanRequiredAtBook: quote.IsPanRequiredAtBook,
+      isPanRequiredAtTicket: quote.IsPanRequiredAtTicket,
+      isPassportRequiredAtBook: quote.IsPassportRequiredAtBook,
+      isPassportRequiredAtTicket: quote.IsPassportRequiredAtTicket,
+      fare: quote.Fare,
+      GSTAllowed: quote.GSTAllowed,
+      isCouponAppilcable: quote.IsCouponAppilcable,
+      isGSTMandatory: quote.IsGSTMandatory,
+      isHoldAllowed: quote.IsHoldAllowed,
+      outBound: outBound,
+      inBound: inBound,
+    };
+  });
+}
+
+
+
 const ssr = catchAsync(
   async (
     request: Request,
@@ -313,7 +382,7 @@ const ssr = catchAsync(
     next: NextFunction
   ): Promise<void> => {
     const returnObj: SSRResponseType = {
-      data: { Meal: [], SeatDynamic: [] },
+      data: { Meal: [], SegmentSeat: [] },
       flag: true,
       type: "",
       message: "",

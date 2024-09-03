@@ -432,7 +432,7 @@ const getSSR = async (
     if (apiResponse?.data?.Response?.Error?.ErrorCode === 0) {
       const result: SSRFlightData = {
         Meal: apiResponse?.data?.Response.Meal,
-        SeatDynamic: apiResponse?.data?.Response.SeatDynamic,
+        SegmentSeat: apiResponse?.data?.Response.SeatDynamic[0].SegmentSeat,
       };
       return result;
     } else {
