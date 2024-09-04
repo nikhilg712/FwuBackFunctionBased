@@ -66,7 +66,7 @@ export interface CoTravellerType {
 }
 
 export interface CoTravellerResponseType {
-  data: object;
+  data: CoTravellerType[];
   flag: boolean;
   type: string;
   message: string;

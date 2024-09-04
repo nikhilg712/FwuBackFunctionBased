@@ -270,23 +270,32 @@ const verifyOtp = async (
 };
 
 const createCoTraveller = async (
-  userId: string,
-  coTravelerData: object
+  request: Request,
+  response: Response,
+  next: NextFunction
 ): Promise<CoTravellerType> => {
+
+  const user = request.user as { id: string };
+  const userId = user.id;
+
+  const coTravellerData = request.body;
   const coTraveler = new CoTraveller({
     userId,
-    ...coTravelerData,
+    ...coTravellerData
   });
   return await coTraveler.save();
 };
 
 const updateCoTraveller = async (
-  id: string,
-  coTravelerData: CoTravellerType
+  request: Request,
+  response: Response,
+  next: NextFunction
 ): Promise<CoTravellerType | null> => {
+
+  const coTravellerData = request.body;
   const updatedCoTraveler = await CoTraveller.findByIdAndUpdate(
-    id,
-    coTravelerData,
+    request.params.coTravellerId,
+    coTravellerData,
     {
       new: true,
     }
@@ -301,21 +310,30 @@ const updateCoTraveller = async (
 };
 
 const findCoTravellersByUserId = async (
-  userId: string
+  request: Request,
+  response: Response,
+  next: NextFunction
 ): Promise<CoTravellerType[]> => {
+  const user = request.user as { id: string }; // Explicitly tell TypeScript that user has an id field
+  const userId = user.id;
+  console.log(userId);
   return await CoTraveller.find({ userId }).exec();
 };
 
 const findCoTravellerById = async (
-  id: string
+  request: Request,
+  response: Response,
+  next: NextFunction
 ): Promise<CoTravellerType | null> => {
-  return await CoTraveller.findById(id).exec();
+  return await CoTraveller.findById(request.params.coTravellerId).exec();
 };
 
 const deleteCoTraveller = async (
-  id: string
+  request: Request,
+  response: Response,
+  next: NextFunction
 ): Promise<CoTravellerType | null> => {
-  return await CoTraveller.findByIdAndDelete(id).exec();
+  return await CoTraveller.findByIdAndDelete(request.params.coTravellerId).exec();
 };
 // Export the functions
 
