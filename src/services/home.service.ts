@@ -378,6 +378,7 @@ const getFareQuote = async (
           NetPayable,
           ResultIndex,
         });
+        booking.FlightItinerary.IsLCC = apiResponse.data.Response.Results.IsLCC ;
         await booking.save();
       }
 
@@ -616,8 +617,8 @@ const ticketLCC = async (
   next: NextFunction
 ) => {
   try {
-    const merchantTransactionId = +request.params.merchantTransactionId;
-    const booking = await Booking.findOne({ id: merchantTransactionId });
+    const merchantTransactionId = request.params.merchantTransactionId;
+    const booking = await Booking.findOne({ _id: merchantTransactionId });
 
     const AuthData = await getAuthenticatedToken(request, response, next);
 

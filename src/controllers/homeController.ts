@@ -579,7 +579,7 @@ const paymentStatus = catchAsync(
       );
     } else {
       const booking = await Booking.findOne({
-        id: merchantTransactionId,
+        _id: merchantTransactionId,
       });
       const saltKey = process.env.PHONEPE_SALTKEY;
 
@@ -624,13 +624,6 @@ const paymentStatus = catchAsync(
 
       try {
         const userId = booking?.userId;
-        const transaction = new Transaction({
-          userId,
-          ...phonepeData,
-        });
-
-        await transaction.save();
-
         if (
           phonepeData.code !== "PAYMENT_SUCCESS" ||
           phonepeData.success !== true
@@ -645,6 +638,13 @@ const paymentStatus = catchAsync(
             response,
             next
           );
+          const transaction = new Transaction({
+            userId,
+            ...phonepeData,
+          });
+  
+          await transaction.save();
+  
           returnObj.data = bookingLCC;
           returnObj.message = "Ticket fetched successfully";
 

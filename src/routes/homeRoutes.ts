@@ -41,14 +41,14 @@ const initializeRoutes = (router: Router) => {
   router.get(`${path}bookingDetails`, isAuthenticated, bookingDetails);
   router.post(`${path}ticketLCC`, isAuthenticated, ticketLCC);
 
-  router.post(`${path}cancelPnr`, isAuthenticated, cancelPnrReq);
-  router.post(`${path}sendChangeReq`, isAuthenticated, sendChangeReq);
-  router.post(
+  router.get(`${path}cancelPnr`, isAuthenticated, cancelPnrReq);
+  router.get(`${path}sendChangeReq`, isAuthenticated, sendChangeReq);
+  router.get(
     `${path}getChangeRequestStatus`,
     isAuthenticated,
     changeRequestStatus
   );
-  router.post(
+  router.get(
     `${path}getCancellationcharges`,
     isAuthenticated,
     cancellationcharges
