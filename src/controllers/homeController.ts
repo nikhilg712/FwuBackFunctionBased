@@ -638,8 +638,10 @@ const paymentStatus = catchAsync(
             response,
             next
           );
+          const BookingId = bookingLCC.data.Response.Response.BookingId;
           const transaction = new Transaction({
             userId,
+            BookingId,
             ...phonepeData,
           });
   
@@ -730,7 +732,12 @@ const ticketLCC = catchAsync(
       console.log(booking.NetPayable);
     }
 
-    booking.FlightItinerary.Passenger = Passengers;
+    await Booking.updateOne(
+      { ResultIndex, userId }, // Replace with the actual booking ID
+      { $set: { "FlightItinerary.Passenger": Passengers } } // Replace with new passengers array
+    );
+
+    // booking.FlightItinerary.Passenger = Passengers;
 
     const merchantTransactionId = booking?.id;
     const data = {

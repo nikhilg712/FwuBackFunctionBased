@@ -111,6 +111,9 @@ interface FareRule {
 // Define the main FlightItinerary interface
 interface FlightItinerary {
   JourneyType: number;
+  IssuancePcc:string;
+  IsAutoReissuanceAllowed:boolean;
+  IsCouponAppilcable:boolean;
   SearchCombinationType: number;
   TripIndicator: number;
   BookingAllowedForRoamer: boolean;
@@ -190,6 +193,9 @@ const BookingSchema: Schema = new Schema({
   PaymentStatus: { type: String, default: "Initiated" },
   NetPayable:{ type: Number },
   FlightItinerary: {
+    IsAutoReissuanceAllowed: { type: Boolean },
+    IssuancePcc: { type: String },
+    IsCouponAppilcable:{ type: Boolean },
     JourneyType: { type: Number },
     SearchCombinationType: { type: Number },
     TripIndicator: { type: Number },

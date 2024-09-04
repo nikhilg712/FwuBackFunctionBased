@@ -619,6 +619,7 @@ const ticketLCC = async (
   try {
     const merchantTransactionId = request.params.merchantTransactionId;
     const booking = await Booking.findOne({ _id: merchantTransactionId });
+    const ResultIndex = booking?.ResultIndex.toString()
 
     const AuthData = await getAuthenticatedToken(request, response, next);
 
@@ -628,7 +629,7 @@ const ticketLCC = async (
       AgentReferenceNo: "",
       TokenId: AuthData.tokenId,
       TraceId: request.cookies.tekTravelsTraceId,
-      ResultIndex: booking?.ResultIndex.toString(),
+      ResultIndex:ResultIndex,
       Passengers: booking?.FlightItinerary.Passenger,
     };
 
@@ -652,11 +653,13 @@ const ticketLCC = async (
       const TDS =
         fareData.TdsOnCommission + fareData.TdsOnPLB + fareData.TdsOnIncentive;
       const NetPayable = fareData.OfferedFare + TDS;
-      const booking = new Booking({
+      const saveBooking = new Booking({
+        NetPayable,
+        ResultIndex,
         ...apiResponse.data.Response.Response,
       });
 
-      await booking.save();
+      await saveBooking.save();
       return { data: apiResponse.data };
     }
   } catch (err: any) {
