@@ -129,7 +129,6 @@ const searchFlights = async (
   next: NextFunction
 ): Promise<SelectedFareQuote[][]> => {
   try {
-    // Fetch the latest authentication data
     const AuthData = await getAuthenticatedToken(request, response, next);
 
     // Extract and validate request query parameters
@@ -227,7 +226,8 @@ const searchFlights = async (
         const traceId = apiResponse.data.Response.TraceId;
         response.cookie("tekTravelsTraceId", traceId, {
           maxAge: 15 * 60 * 60 * 1000, // 15 hours
-          httpOnly: true,
+          httpOnly: false,
+          sameSite: "strict",
           secure: process.env.BUILD_ENV !== "development",
         });
       }
@@ -378,7 +378,7 @@ const getFareQuote = async (
           NetPayable,
           ResultIndex,
         });
-        booking.FlightItinerary.IsLCC = apiResponse.data.Response.Results.IsLCC ;
+        booking.FlightItinerary.IsLCC = apiResponse.data.Response.Results.IsLCC;
         await booking.save();
       }
 
@@ -629,7 +629,7 @@ const ticketLCC = async (
       TokenId: AuthData.tokenId,
       TraceId: request.cookies.tekTravelsTraceId,
       ResultIndex: booking?.ResultIndex.toString(),
-      Passengers: booking?.FlightItinerary.Passenger,
+      Passengers: booking?.FlightItinerary?.Passenger,
     };
 
     let apiResponse: any;
@@ -639,6 +639,7 @@ const ticketLCC = async (
         data: requestBody,
       });
       console.log(apiResponse);
+      //
     } catch (err: any) {
       console.error(
         "Error Response:",
