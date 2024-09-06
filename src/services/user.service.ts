@@ -18,7 +18,7 @@ import { constants } from "../constants/user.constants";
 import OTP from "../models/otp";
 import { generateOTPTemplate } from "../views/otp-template";
 import { passwordResetTemplate } from "../views/reset-password-template";
-
+import fs from "fs";
 dotenv.config();
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -107,7 +107,6 @@ const signupSchema = yup.object({
   googleId: yup.string().notRequired(),
 });
 
-
 const sayHello = (): { data: string } => ({
   data: "hello",
 });
@@ -115,14 +114,12 @@ const sayHello = (): { data: string } => ({
 const createAddress = async (address: IAddress): Promise<IAddress[]> => {
   try {
     const addressResponse = await Address.insertMany(address);
-  const addressIds = addressResponse.map((address) => address.id);
-  return addressIds;
-  } catch (error:any) {
-    throw new AppError(error.message,400)
+    const addressIds = addressResponse.map((address) => address.id);
+    return addressIds;
+  } catch (error: any) {
+    throw new AppError(error.message, 400);
   }
-  
 };
-
 
 const createUser = async (userData: IUser): Promise<IUser> => {
   try {
@@ -133,8 +130,6 @@ const createUser = async (userData: IUser): Promise<IUser> => {
     throw new AppError("Error occured while signing up user", 500);
   }
 };
-
-
 
 const validatePassword = async (
   inputPassword: string,
@@ -159,7 +154,7 @@ const sendEmailOtp = async (email: string): Promise<void> => {
 
     // Send OTP via Email
     let template = generateOTPTemplate(otpValue);
-    await sendEmail(email, template, "Email Verification");
+    await sendEmail(email, template, "Email Verification", "");
     console.log("OTP sent successfully");
   } catch (error) {
     console.error("Error sending OTP:", error);
@@ -189,7 +184,7 @@ const sendOtp = async (
 
     // Send OTP via Email
     let template = generateOTPTemplate(otpValue);
-    await sendEmail(email!, template, "Email Verification");
+    await sendEmail(email!, template, "Email Verification", "");
     console.log("OTP sent successfully");
   } else if (provider === "phone") {
     const otpValue = Math.floor(1000 + Math.random() * 9000).toString(); // Generate Random 6 digit number
@@ -270,23 +265,30 @@ const verifyOtp = async (
 };
 
 const createCoTraveller = async (
-  userId: string,
-  coTravelerData: object
+  request: Request,
+  response: Response,
+  next: NextFunction
 ): Promise<CoTravellerType> => {
+  const user = request.user as { id: string };
+  const userId = user.id;
+
+  const coTravellerData = request.body;
   const coTraveler = new CoTraveller({
     userId,
-    ...coTravelerData,
+    ...coTravellerData,
   });
   return await coTraveler.save();
 };
 
 const updateCoTraveller = async (
-  id: string,
-  coTravelerData: CoTravellerType
+  request: Request,
+  response: Response,
+  next: NextFunction
 ): Promise<CoTravellerType | null> => {
+  const coTravellerData = request.body;
   const updatedCoTraveler = await CoTraveller.findByIdAndUpdate(
-    id,
-    coTravelerData,
+    request.params.coTravellerId,
+    coTravellerData,
     {
       new: true,
     }
@@ -301,51 +303,71 @@ const updateCoTraveller = async (
 };
 
 const findCoTravellersByUserId = async (
-  userId: string
+  request: Request,
+  response: Response,
+  next: NextFunction
 ): Promise<CoTravellerType[]> => {
+  const user = request.user as { id: string }; // Explicitly tell TypeScript that user has an id field
+  const userId = user.id;
+  console.log(userId);
   return await CoTraveller.find({ userId }).exec();
 };
 
 const findCoTravellerById = async (
-  id: string
+  request: Request,
+  response: Response,
+  next: NextFunction
 ): Promise<CoTravellerType | null> => {
-  return await CoTraveller.findById(id).exec();
+  return await CoTraveller.findById(request.params.coTravellerId).exec();
 };
 
 const deleteCoTraveller = async (
-  id: string
+  request: Request,
+  response: Response,
+  next: NextFunction
 ): Promise<CoTravellerType | null> => {
-  return await CoTraveller.findByIdAndDelete(id).exec();
+  return await CoTraveller.findByIdAndDelete(
+    request.params.coTravellerId
+  ).exec();
 };
 // Export the functions
 
 const sendEmail = async (
   email: string,
   body: string,
-  subject: string
+  subject: string,
+  attachment: any
 ): Promise<void> => {
   const client = await createClient();
   try {
+    const pdfData = fs.readFileSync("output.pdf").toString("base64");
     await client.api("/users/support@flewwithus.com/sendMail").post({
       message: {
         subject: subject,
         body: {
           contentType: "HTML",
-          content: body,
+          content: "<html><body><h1>Test PDF</h1></body></html>",
         },
         toRecipients: [
           {
             emailAddress: {
-              address: email,
+              address: "bhartimishra1993@gmail.com",
             },
+          },
+        ],
+        attachments: [
+          {
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            name: "output.pdf",
+            contentBytes: pdfData,
+            contentType: "application/pdf",
           },
         ],
       },
     });
-  } catch (error:any) {
-    throw new AppError(error.message,400)
+  } catch (error: any) {
+    throw new AppError(error.message, 400);
   }
-
 };
 
 const forgotPassword = async (email: string): Promise<void> => {
@@ -385,10 +407,9 @@ const forgotPassword = async (email: string): Promise<void> => {
         ],
       },
     });
-  } catch (error:any) {
+  } catch (error: any) {
     throw new AppError(error.message, 400);
   }
-
 };
 
 const resetPassword = async (
@@ -423,10 +444,9 @@ const resetPassword = async (
         $unset: { resetPasswordToken: "", resetPasswordExpiry: "" },
       }
     );
-  } catch (error:any) {
-    throw new AppError(error.message,400)
+  } catch (error: any) {
+    throw new AppError(error.message, 400);
   }
-
 };
 
 export {
