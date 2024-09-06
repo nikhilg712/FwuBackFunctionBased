@@ -43,12 +43,8 @@ import crypto from "crypto";
 import axios from "axios";
 import { Booking } from "../models/Booking";
 import { Transaction } from "../models/Transaction";
-<<<<<<< Updated upstream
 import mongoose from "mongoose";
-
-=======
 import { sendEmail } from "../services/user.service";
->>>>>>> Stashed changes
 const getCountryList = catchAsync(
   async (
     request: Request,
@@ -561,23 +557,21 @@ const paymentStatus = catchAsync(
       message: "",
     };
 
-    let IsLCC
+    let IsLCC;
     const { merchantTransactionId } = request.params;
-    if (typeof merchantTransactionId === 'string') {
+    if (typeof merchantTransactionId === "string") {
       // If merchantTransactionId is a string, assume it's _id or convert it to ObjectId
       const booking: any = await Booking.findOne({
-        _id: new mongoose.Types.ObjectId(merchantTransactionId)
+        _id: new mongoose.Types.ObjectId(merchantTransactionId),
       });
       IsLCC = booking.FlightItinerary.IsLCC;
     } else {
       // If it's not a string, search by BookingId
-       const booking: any = await Booking.findOne({
+      const booking: any = await Booking.findOne({
         BookingId: merchantTransactionId,
       });
       IsLCC = booking.FlightItinerary.IsLCC;
     }
-
-   
 
     if (!merchantTransactionId) {
       throw new AppError(constants.TRANSACTIONID_NOT_FOUND, 400);
@@ -946,13 +940,13 @@ const cancelPnrReq = catchAsync(
 
     // Call the getfareQuote service method
 
-    const booking: any = await getCancelPnrReq(request, response, next);
-    returnObj.data = booking;
-    returnObj.message = "Booking fetched successfully";
+    const cancelPnrReq: any = await getCancelPnrReq(request, response, next);
+    returnObj.data = cancelPnrReq;
+    returnObj.message = "Booking hold released successfully";
 
-    if (!booking) {
+    if (!cancelPnrReq) {
       returnObj.flag = false;
-      returnObj.message = constants.GET_BOOKING_FAILED;
+      returnObj.message = "Booking hold not released due to some error";
     }
 
     sendResponse(
