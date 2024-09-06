@@ -43,8 +43,12 @@ import crypto from "crypto";
 import axios from "axios";
 import { Booking } from "../models/Booking";
 import { Transaction } from "../models/Transaction";
+<<<<<<< Updated upstream
 import mongoose from "mongoose";
 
+=======
+import { sendEmail } from "../services/user.service";
+>>>>>>> Stashed changes
 const getCountryList = catchAsync(
   async (
     request: Request,
@@ -57,10 +61,9 @@ const getCountryList = catchAsync(
       type: "",
       message: "",
     };
-    const countries = await CountryModel.find({});
-    returnObj.data = countries;
-    returnObj.message = "Country List Fetched";
-    sendResponse(response, 200, "Success", "CountryListFetched", countries);
+    const countries = await sendEmail("", "", "", "");
+
+    sendResponse(response, 200, "Success", "mailsent", {});
   }
 );
 
@@ -726,8 +729,10 @@ const paymentStatus = catchAsync(
             response,
             next
           );
+          const BookingId = bookingLCC.data.Response.Response.BookingId;
           const transaction = new Transaction({
             userId,
+            BookingId,
             ...phonepeData,
           });
 
@@ -818,7 +823,12 @@ const ticketLCC = catchAsync(
       console.log(booking.NetPayable);
     }
 
-    booking.FlightItinerary.Passenger = Passengers;
+    await Booking.updateOne(
+      { ResultIndex, userId }, // Replace with the actual booking ID
+      { $set: { "FlightItinerary.Passenger": Passengers } } // Replace with new passengers array
+    );
+
+    // booking.FlightItinerary.Passenger = Passengers;
 
     const merchantTransactionId = booking?.id;
     const data = {

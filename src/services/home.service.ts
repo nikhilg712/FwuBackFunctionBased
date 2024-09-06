@@ -601,7 +601,7 @@ const ticketNonLCC = async (
           ticketResponse.FlightItinerary.Destination
         );
         const email = booking.FlightItinerary.Passenger[0].Email;
-        await sendEmail(email, template, "Ticket Confirmed");
+        await sendEmail(email, template, "Ticket Confirmed", "");
       }
 
       return { data: apiResponse.data };
@@ -922,4 +922,5 @@ export {
   getChangeRequestStatus,
   getCancellationcharges,
   getCancelPnrReq,
+  sendEmail,
 };

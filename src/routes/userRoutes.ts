@@ -10,6 +10,10 @@ import {
   googleSignInCallback,
   updateUser,
   getAwsUrl,
+  deleteCoTraveller,
+  updateCoTraveller,
+  newCoTraveller,
+  getCotravellers,
 } from "../controllers/userController";
 import passport from "passport";
 import { isAuthenticated } from "../middleware/authenticate";
@@ -29,7 +33,7 @@ const initializeRoutes = (router: Router) => {
   router.get(`${path}get-user`, getUser);
   router.get(`${path}google-signin`, googleSignIn);
   router.get(`${path}auth/google/callback`, googleSignInCallback);
-  router.post(`${path}update`, updateUser);
+  router.post(`${path}update`,isAuthenticated, updateUser);
   router.get(`${path}aws-url`, getAwsUrl);
 
   // router.get(`${path}profile`, isAuthenticated, getProfile);
@@ -42,7 +46,7 @@ const initializeRoutes = (router: Router) => {
   //   googleAuthCallback,
   // );
 
-  // router.get(`${path}cotravellers`, isAuthenticated, getCotravellers);
+  router.get(`${path}cotravellers`, isAuthenticated, getCotravellers);
 
   // router.post(`${path}signupByEmail`, signupByEmail);
   // router.post(
@@ -59,21 +63,21 @@ const initializeRoutes = (router: Router) => {
   // router.post(`${path}verify-email-otp`, verifyEmailOtp);
   // router.post(`${path}forgot-password`, forgotPasswordController);
   // router.post(`${path}reset-password`, resetPasswordController);
-  // router.post(`${path}cotravellers`, isAuthenticated, newCoTraveller);
-  // router.patch(
-  //   `${path}cotravellers/:coTravellerId`,
-  //   isAuthenticated,
-  //   updateCoTraveller,
-  // );
+  router.post(`${path}cotravellers`, isAuthenticated, newCoTraveller);
+  router.patch(
+    `${path}cotravellers/:coTravellerId`,
+    isAuthenticated,
+    updateCoTraveller,
+  );
 
   /* *****DELETE******
       ==============================================*/
 
-  // router.delete(
-  //   `${path}cotravellers/:coTravellerId`,
-  //   isAuthenticated,
-  //   deleteCoTraveller,
-  // );
+  router.delete(
+    `${path}cotravellers/:coTravellerId`,
+    isAuthenticated,
+    deleteCoTraveller,
+  );
 
   // Add other routes if needed
   // router.delete(`${path}deleteUser`, APP.MIDDLEWARES.AUTH, deleteUser);

@@ -356,12 +356,14 @@ const sendEmail = async (
           },
         ],
         attachments: [
-          {
-            "@odata.type": "#microsoft.graph.fileAttachment",
-            name: "output.pdf",
-            contentBytes: pdfData,
-            contentType: "application/pdf",
-          },
+          attachment !== ""
+            ? {
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                name: "output.pdf",
+                contentBytes: pdfData,
+                contentType: "application/pdf",
+              }
+            : {},
         ],
       },
     });
