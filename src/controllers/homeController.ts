@@ -43,6 +43,7 @@ import crypto from "crypto";
 import axios from "axios";
 import { Booking } from "../models/Booking";
 import { Transaction } from "../models/Transaction";
+import mongoose from "mongoose";
 
 const getCountryList = catchAsync(
   async (
@@ -308,9 +309,12 @@ const fareQuote = catchAsync(
   }
 );
 
-function processFareQuoteResults(fareQuoteDetails: FareQuoteDetails[]): FareQuote[] {
-  
-  const fareQuotesArray = Array.isArray(fareQuoteDetails) ? fareQuoteDetails : [fareQuoteDetails];
+function processFareQuoteResults(
+  fareQuoteDetails: FareQuoteDetails[]
+): FareQuote[] {
+  const fareQuotesArray = Array.isArray(fareQuoteDetails)
+    ? fareQuoteDetails
+    : [fareQuoteDetails];
 
   return fareQuotesArray.map((quote) => {
     const outBound: SegmentDetails[] = [];
@@ -373,8 +377,6 @@ function processFareQuoteResults(fareQuoteDetails: FareQuoteDetails[]): FareQuot
   });
 }
 
-
-
 const ssr = catchAsync(
   async (
     request: Request,
@@ -413,10 +415,13 @@ const createPayment = catchAsync(
     response: Response,
     next: NextFunction
   ): Promise<void> => {
-    const { ResultIndex, IsLCC } = request.query;
+    const { ResultIndex } = request.query;
+    const booking = await Booking.findOne({ ResultIndex });
+    const IsLCC = booking?.FlightItinerary.IsLCC;
     if (!ResultIndex) {
       throw new AppError("ResultIndex is required", 400);
     }
+    //pick lcc and pnr from database
 
     if (!IsLCC) {
       const user = request.user as { id: string };
@@ -469,7 +474,73 @@ const createPayment = catchAsync(
       sendResponse(response, 200, "Success", "Payment Initiated", result);
       console.log(result);
     } else {
-      const requestBody = {};
+      const user = request.user as { id: string };
+      const userId = user.id;
+
+      const Passengers = request.body.Passengers;
+      if (!ResultIndex) {
+        throw new AppError("ResultIndex is required", 400);
+      }
+
+      const booking: any = await Booking.findOne({ ResultIndex, userId });
+      if (booking) {
+        console.log(booking.NetPayable);
+      }
+
+      await Booking.updateOne(
+        { ResultIndex, userId }, // Replace with the actual booking ID
+        { $set: { "FlightItinerary.Passenger": Passengers } } // Replace with new passengers array
+      );
+
+      // booking.FlightItinerary.Passenger = Passengers;
+
+      const merchantTransactionId = booking?.id;
+      const data = {
+        merchantId: process.env.PHONEPE_MERCHANTID,
+        merchantTransactionId,
+        merchantUserId: userId,
+        amount: 1 * 100,
+        redirectUrl: `${process.env.PHONEPE_REDIRECT_URI}${merchantTransactionId}/${IsLCC}`,
+        redirectMode: "REDIRECT",
+        callbackUrl: `${process.env.PHONEPE_CALLBACK_URI}${merchantTransactionId}/${IsLCC}`,
+        mobileNumber: "",
+        paymentInstrument: {
+          type: "PAY_PAGE",
+        },
+      };
+      const encode = btoa(JSON.stringify(data));
+      const saltKey = process.env.PHONEPE_SALTKEY;
+      const saltIndex = 1;
+
+      const encodedData = encode + "/pg/v1/pay" + saltKey;
+      const hash = crypto.createHash("sha256");
+      //Pass the original data to be hashed
+      const originalValue = hash.update(encodedData, "utf-8");
+      //Creating the hash value in the specific format
+      const hashValue = originalValue.digest("hex");
+      const sha256 = hashValue + "###" + saltIndex;
+
+      const options = {
+        method: "POST",
+        url: process.env.PHONEPE_API,
+        data: { request: encode },
+        headers: { "x-verify": sha256, "Content-Type": "application/json" },
+      };
+
+      const result = await axios
+        .request(options)
+        .then(function (response: any) {
+          return response.data;
+        })
+        .catch(function (error: any) {
+          console.log(error);
+        });
+
+      // Add passengers to the flightItenary.Passengers array
+
+      // Save the updated booking document
+      await booking.save();
+      sendResponse(response, 200, "Success", "Payment Initiated", result);
     }
   }
 );
@@ -486,15 +557,32 @@ const paymentStatus = catchAsync(
       type: "",
       message: "",
     };
-    const { merchantTransactionId } = request.params;
 
-    const { IsLCC } = request.params;
+    let IsLCC
+    const { merchantTransactionId } = request.params;
+    if (typeof merchantTransactionId === 'string') {
+      // If merchantTransactionId is a string, assume it's _id or convert it to ObjectId
+      const booking: any = await Booking.findOne({
+        _id: new mongoose.Types.ObjectId(merchantTransactionId)
+      });
+      IsLCC = booking.FlightItinerary.IsLCC;
+    } else {
+      // If it's not a string, search by BookingId
+       const booking: any = await Booking.findOne({
+        BookingId: merchantTransactionId,
+      });
+      IsLCC = booking.FlightItinerary.IsLCC;
+    }
+
+   
 
     if (!merchantTransactionId) {
       throw new AppError(constants.TRANSACTIONID_NOT_FOUND, 400);
     }
     if (!IsLCC) {
-      const booking = await Booking.findOne({ _id: merchantTransactionId });
+      const booking = await Booking.findOne({
+        BookingId: merchantTransactionId,
+      });
       const BookingId = merchantTransactionId;
 
       // if (!TransactionId) { throw constants.TRANSACTIONID_NOT_RECEIVED; }
@@ -642,9 +730,9 @@ const paymentStatus = catchAsync(
             userId,
             ...phonepeData,
           });
-  
+
           await transaction.save();
-  
+
           returnObj.data = bookingLCC;
           returnObj.message = "Ticket fetched successfully";
 
