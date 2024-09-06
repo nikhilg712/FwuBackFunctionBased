@@ -28,7 +28,8 @@ interface Fare {
   TotalSpecialServiceCharges: number;
 }
 
-interface Passenger {
+export interface Passenger {
+  BarcodeDetails:string,
   PaxId: number;
   Title: string;
   FirstName: string;
@@ -109,7 +110,7 @@ interface FareRule {
 }
 
 // Define the main FlightItinerary interface
-interface FlightItinerary {
+export interface FlightItinerary {
   JourneyType: number;
   IssuancePcc:string;
   IsAutoReissuanceAllowed:boolean;
@@ -252,6 +253,7 @@ const BookingSchema: Schema = new Schema({
     },
     Passenger: [
       {
+        BarcodeDetails: {type:String},
         PaxId: { type: Number },
         Title: { type: String },
         FirstName: { type: String },

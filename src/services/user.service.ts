@@ -19,6 +19,8 @@ import OTP from "../models/otp";
 import { generateOTPTemplate } from "../views/otp-template";
 import { passwordResetTemplate } from "../views/reset-password-template";
 import fs from "fs";
+import puppeteer from "puppeteer";
+import path from "path";
 dotenv.config();
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -332,42 +334,69 @@ const deleteCoTraveller = async (
 };
 // Export the functions
 
+const htmlToPdf = async (template: string, outputPath: string) => {
+  const browser = await puppeteer.launch();
+  const page = await browser.newPage();
+
+  // Set content with proper waitUntil to ensure styles are fully loaded
+  await page.setContent(template, { waitUntil: "networkidle0" });
+
+  // Save the PDF with printBackground enabled to include CSS backgrounds
+  await page.pdf({
+    path: outputPath,
+    format: "A4",
+    printBackground: true, // Ensure background colors and images are printed
+  });
+
+  console.log("PDF created at:", outputPath);
+  await browser.close();
+};
+
+
+
 const sendEmail = async (
   email: string,
   body: string,
   subject: string,
-  attachment: any
+  attachmentPath: string | null
 ): Promise<void> => {
   const client = await createClient();
+
   try {
-    const pdfData = fs.readFileSync("output.pdf").toString("base64");
+    // Read the PDF file only if attachmentPath is provided
+    let attachments = [];
+
+    if (attachmentPath) {
+      const pdfData = fs.readFileSync(path.resolve(attachmentPath)).toString("base64");
+      attachments.push({
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        name: path.basename(attachmentPath),
+        contentBytes: pdfData,
+        contentType: "application/pdf",
+      });
+    }
+
     await client.api("/users/support@flewwithus.com/sendMail").post({
       message: {
         subject: subject,
         body: {
           contentType: "HTML",
-          content: "<html><body><h1>Test PDF</h1></body></html>",
+          content: body,
         },
         toRecipients: [
           {
             emailAddress: {
-              address: "bhartimishra1993@gmail.com",
+              address: email,
             },
           },
         ],
-        attachments: [
-          attachment !== ""
-            ? {
-                "@odata.type": "#microsoft.graph.fileAttachment",
-                name: "output.pdf",
-                contentBytes: pdfData,
-                contentType: "application/pdf",
-              }
-            : {},
-        ],
+        attachments: attachments.length > 0 ? attachments : undefined,
       },
     });
+
+    console.log("Mail Sent successfully.");
   } catch (error: any) {
+    console.error("Error sending mail:", error);
     throw new AppError(error.message, 400);
   }
 };
@@ -468,4 +497,5 @@ export {
   deleteCoTraveller,
   sendEmail,
   sendEmailOtp,
+  htmlToPdf
 };
