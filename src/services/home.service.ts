@@ -12,9 +12,15 @@ import { AppError } from "../utils/appError";
 import { sendApiRequest } from "../utils/requestAPI";
 import { constants } from "../constants/home.constants";
 import { Airport } from "../models/airport";
-import { Booking } from "../models/Booking";
-import { sendEmail } from "../services/user.service";
+import { Booking, Passenger } from "../models/Booking";
+import { htmlToPdf, sendEmail } from "../services/user.service";
 import { ticketTemplate } from "../views/ticket-template";
+import path from "path";
+
+
+
+
+
 
 const getAirportList = async (
   Start: number,
@@ -595,13 +601,42 @@ const ticketNonLCC = async (
         const ticketResponse = apiResponse.data.Response.Response;
         const template = ticketTemplate(
           ticketResponse.BookingId,
-          ticketResponse.PNR,
-          ticketResponse.FlightItinerary.Passenger[0].FirstName,
           ticketResponse.FlightItinerary.Origin,
-          ticketResponse.FlightItinerary.Destination
+          ticketResponse.FlightItinerary.Destination,
+          ticketResponse.FlightItinerary.Segments.FlightStatus,
+          ticketResponse.FlightItinerary.Segments.CabinClass,
+          ticketResponse.FlightItinerary.Segments.Airline.FlightNumber,
+          ticketResponse.FlightItinerary.Segments.Airline.AirlineCode,
+          ticketResponse.FlightItinerary.Segments.Airline.AirlineName,
+          ticketResponse.FlightItinerary.Segments.Origin.DepTime,
+          ticketResponse.FlightItinerary.Segments.Origin.Airport.CityCode,
+          ticketResponse.FlightItinerary.Segments.Origin.DepTime,
+          ticketResponse.FlightItinerary.Segments.Origin.Airport.AirportName,
+          ticketResponse.FlightItinerary.Segments.Destination.Airport.CityCode,
+          ticketResponse.FlightItinerary.Segments.Origin.ArrTime,
+          ticketResponse.FlightItinerary.Segments.Destination.Airport
+            .AirportName,
+          ticketResponse.FlightItinerary.Segments.Origin.Airport.Terminal,
+          ticketResponse.FlightItinerary.Segments.CabinBaggage,
+          ticketResponse.FlightItinerary.Fare.Currency,
+          ticketResponse.NetPayable,
+          ticketResponse.FlightItinerary.Passenger,
+          ticketResponse.FlightItinerary.PNR
         );
+
+        const outputPath = path.join(__dirname, "output.pdf");
         const email = booking.FlightItinerary.Passenger[0].Email;
-        await sendEmail(email, template, "Ticket Confirmed", "");
+        htmlToPdf(template, outputPath)
+          .then(() => {
+            console.log("PDF generated successfully.");
+          })
+          .catch((err) => console.error("Error generating PDF:", err));
+        await sendEmail(
+          email,
+          template,
+          "Ticket Confirmed",
+          outputPath
+        );
       }
 
       return { data: apiResponse.data };
