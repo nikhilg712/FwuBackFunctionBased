@@ -9,11 +9,11 @@ import {
   googleSignIn,
   googleSignInCallback,
   updateUser,
-  getAwsUrl,
   deleteCoTraveller,
   updateCoTraveller,
   newCoTraveller,
   getCotravellers,
+  uploadProfilePic,
 } from "../controllers/userController";
 import passport from "passport";
 import { isAuthenticated } from "../middleware/authenticate";
@@ -33,8 +33,7 @@ const initializeRoutes = (router: Router) => {
   router.get(`${path}get-user`, getUser);
   router.get(`${path}google-signin`, googleSignIn);
   router.get(`${path}auth/google/callback`, googleSignInCallback);
-  router.post(`${path}update`,isAuthenticated, updateUser);
-  router.get(`${path}aws-url`, getAwsUrl);
+  router.post(`${path}update`, uploadProfilePic, isAuthenticated, updateUser);
 
   // router.get(`${path}profile`, isAuthenticated, getProfile);
   // router.get("/auth/google", googleAuth);
@@ -67,7 +66,7 @@ const initializeRoutes = (router: Router) => {
   router.patch(
     `${path}cotravellers/:coTravellerId`,
     isAuthenticated,
-    updateCoTraveller,
+    updateCoTraveller
   );
 
   /* *****DELETE******
@@ -76,7 +75,7 @@ const initializeRoutes = (router: Router) => {
   router.delete(
     `${path}cotravellers/:coTravellerId`,
     isAuthenticated,
-    deleteCoTraveller,
+    deleteCoTraveller
   );
 
   // Add other routes if needed

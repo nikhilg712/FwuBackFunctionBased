@@ -5,7 +5,6 @@ import passport from "passport";
 import session from "express-session";
 import initializeRoutes from "./routes/index";
 import dotenv from "dotenv";
-import upload from "express-fileupload";
 import cookieParser from "cookie-parser";
 import dbConnection from "./utils/dbConnection";
 import MongoStore from "connect-mongo";
@@ -58,7 +57,6 @@ const initializeConfigsAndRoute = async (app: express.Application) => {
   app.use(logger("dev"));
 
   app.use(cors({ origin: "http://localhost:3000", credentials: true }));
-  app.use(upload());
   app.use(express.json({ limit: "6000mb" }));
   app.use(express.urlencoded({ extended: true, limit: "6000mb" }));
 

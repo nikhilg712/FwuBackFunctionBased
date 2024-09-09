@@ -17,9 +17,40 @@ import { User } from "../models/users";
 import { AppError } from "../utils/appError";
 import bcrypt from "bcrypt";
 import passport from "passport";
-import generateSignedUrl from "../middleware/s3";
 import { constants } from "../constants/user.constants";
-import { CoTravellerResponseType, CoTravellerType } from "../interface/user.interface";
+import {
+  CoTravellerResponseType,
+  CoTravellerType,
+  UploadedFile,
+} from "../interface/user.interface";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import multer from "multer";
+import multerS3 from "multer-s3";
+import { parse, format, isValid } from "date-fns";
+
+// Configure S3 client
+const s3 = new S3Client({
+  region: process.env.AWS_REGION, // replace with your region
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESSKEYID!,
+    secretAccessKey: process.env.AWS_SECRETACCESSKEY!,
+  },
+});
+// Multer-S3 configuration
+const upload = multer({
+  storage: multerS3({
+    s3,
+    bucket: process.env.AWS_BUCKETNAME!, // replace with your S3 bucket name
+    acl: "public-read", // adjust permissions as needed
+    metadata: (req, file, cb) => {
+      cb(null, { fieldName: file.fieldname });
+    },
+    key: (req, file, cb) => {
+      cb(null, `profile-pics/${Date.now().toString()}-${file.originalname}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit
+});
 
 // For signup with (email + password) or (phone)
 const signup = catchAsync(
@@ -368,48 +399,68 @@ const updateUser = catchAsync(
     response: Response,
     next: NextFunction
   ): Promise<void> => {
-    const { _id, username, dateOfBirth, gender } = request.body;
+    try {
+      // Log request body and files to debug
+      console.log("Request files:", request.file); // For single file
+      console.log("Request body:", request.body.body);
 
-    const validation = await profileUpdateValidator
-      .validate({
+      // Destructure and parse body data (assuming body.payload contains stringified JSON)
+      const { _id, username, dateOfBirth, gender } = JSON.parse(
+        request.body.body
+      );
+      const file: UploadedFile = request.file as unknown as UploadedFile;
+
+      // Check if a profile picture was uploaded
+      const profilePic = file ? file.location! : undefined;
+
+      // Use date-fns to parse and format the dateOfBirth from DD/MM/YYYY to YYYY-MM-DD
+      let formattedDateOfBirth = null;
+      if (dateOfBirth) {
+        const parsedDate = parse(dateOfBirth, "dd/MM/yyyy", new Date()); // Parsing DD/MM/YYYY format
+        formattedDateOfBirth = format(parsedDate, "yyyy-MM-dd"); // Formatting to YYYY-MM-DD
+      }
+
+      // Validate the incoming data
+      await profileUpdateValidator.validate({
         username,
-        dateOfBirth,
+        dateOfBirth: formattedDateOfBirth,
         gender,
-      })
-      .catch((err) => next(new AppError(err.message, 400)));
+        profilePic,
+      });
 
-    const user = await User.findByIdAndUpdate(
-      _id,
-      {
-        username,
-        dateOfBirth,
-        gender,
-      },
-      { new: true }
-    ).catch((err) => next(new AppError(err.message, 400)));
+      // Update the user in the database
+      const user = await User.findByIdAndUpdate(
+        _id,
+        {
+          username,
+          dateOfBirth: formattedDateOfBirth,
+          gender,
+          profilePic, // Save the profile picture URL to the user document
+        },
+        { new: true }
+      );
 
-    sendResponse(
-      response,
-      200,
-      "Success",
-      "Profile updated successfully",
-      user
-    );
+      // If no user is found, return an error
+      if (!user) {
+        return next(new AppError("User not found", 404));
+      }
+
+      // Send the response once the user has been successfully updated
+      return sendResponse(
+        response,
+        200,
+        "Success",
+        "Profile updated successfully",
+        user
+      );
+    } catch (err: any) {
+      // Handle any errors
+      return next(new AppError(err.message, 400));
+    }
   }
 );
 
-const getAwsUrl = catchAsync(
-  async (
-    request: Request,
-    response: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    const url = await generateSignedUrl().catch((err) =>
-      next(new AppError(err.message, 500))
-    );
-    sendResponse(response, 200, "Success", "Aws url generated", url);
-  }
-);
+const uploadProfilePic = upload.single("profilePic");
 
 const newCoTraveller = catchAsync(
   async (
@@ -425,7 +476,11 @@ const newCoTraveller = catchAsync(
     };
 
     if (request.isAuthenticated()) {
-      const coTraveler : CoTravellerType = await createCoTraveller(request, response, next);
+      const coTraveler: CoTravellerType = await createCoTraveller(
+        request,
+        response,
+        next
+      );
       returnObj.data = [coTraveler];
       returnObj.message = constants.SUCCESS_MSG.COTRAVELLER_CREATED;
     } else {
@@ -461,7 +516,7 @@ const updateCoTraveller = catchAsync(
         return sendResponse(response, 200, "Failure", returnObj.message, {});
       }
       const updatedCoTraveller = await updateCoTravelerRequest(
-        request, 
+        request,
         response,
         next
       );
@@ -515,7 +570,7 @@ const deleteCoTraveller = catchAsync(
       const user = request.user as { id: string }; // Explicitly tell TypeScript that user has an id field
       const userId = user.id;
       console.log(userId);
-      const coTravelers : CoTravellerType[] = await findCoTravellersByUserId(
+      const coTravelers: CoTravellerType[] = await findCoTravellersByUserId(
         request,
         response,
         next
@@ -591,11 +646,11 @@ export {
   googleSignIn,
   googleSignInCallback,
   updateUser,
-  getAwsUrl,
   updateCoTraveller,
   newCoTraveller,
   deleteCoTraveller,
   getCotravellers,
+  uploadProfilePic,
 };
 
 // import { NextFunction, Request, Response } from "express";
